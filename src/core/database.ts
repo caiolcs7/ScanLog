@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import { upgradeLegacySettings } from './settings';
+import { extractStreet } from './parser';
 import {
   defaultSettings,
   type Session,
@@ -58,6 +59,7 @@ export class InventoryDatabase extends Dexie {
           .toCollection()
           .modify((settings) => {
             settings.readDescription ??= false;
+            settings.autoGalao ??= false;
           });
         await transaction
           .table<Session, string>('sessions')
@@ -151,6 +153,7 @@ export async function removeRecords(sessionId: string, ids: string[]) {
       (r): r is InventoryRecord => !!r && r.sessionId === sessionId,
     );
     await db.records.bulkDelete(records.map((r) => r.id));
+    await renumberBombonas(sessionId);
     await db.sessions.update(sessionId, {
       count: await db.records.where('sessionId').equals(sessionId).count(),
       updatedAt: Date.now(),
@@ -165,6 +168,7 @@ export async function restoreRecords(records: InventoryRecord[]) {
     if (!session) throw new Error('O levantamento foi excluído.');
     for (const record of records)
       if (!(await db.records.get(record.id))) await db.records.add(record);
+    await renumberBombonas(session.id);
     await db.sessions.update(session.id, {
       count: await db.records.where('sessionId').equals(session.id).count(),
       updatedAt: Date.now(),
@@ -188,4 +192,31 @@ export async function clearAllData() {
       await db.settings.put(structuredClone(defaultSettings));
     },
   );
+}
+export function bombonaLabel(street: string, index: number) {
+  return `${street}G${String(index).padStart(2, '0')}`;
+}
+/**
+ * Automatic bombonas are numbered per street in reading order (R14G01,
+ * R14G02…). Removing or moving records keeps each street contiguous.
+ */
+export async function renumberBombonas(sessionId: string) {
+  const rows = await db.records
+    .where('sessionId')
+    .equals(sessionId)
+    .sortBy('order');
+  const groups = new Map<string, Map<string, string>>();
+  for (const row of rows) {
+    if (!row.galaoGroup) continue;
+    const street = extractStreet(row.address);
+    const streetGroups = groups.get(street) ?? new Map<string, string>();
+    groups.set(street, streetGroups);
+    if (!streetGroups.has(row.galaoGroup))
+      streetGroups.set(
+        row.galaoGroup,
+        bombonaLabel(street, streetGroups.size + 1),
+      );
+    const galao = streetGroups.get(row.galaoGroup)!;
+    if (row.galao !== galao) await db.records.update(row.id, { galao });
+  }
 }

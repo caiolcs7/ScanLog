@@ -1,6 +1,6 @@
-import { db } from './database';
+import { bombonaLabel, db, renumberBombonas } from './database';
 import type { InventoryRecord, Session, Settings, Source } from './models';
-import { normalizeGalao, parseGalao, parseScan } from './parser';
+import { extractStreet, normalizeGalao, parseGalao, parseScan } from './parser';
 
 export type DuplicateCandidate = {
   code: string;
@@ -9,6 +9,8 @@ export type DuplicateCandidate = {
   raw?: string;
   sessionId: string;
   paired: boolean;
+  /** Automatic bombonas: keep the previous record's bombona. */
+  sameGalao?: boolean;
 };
 export type ScanResult = {
   kind:
@@ -78,6 +80,7 @@ export async function appendRecord(
   if (
     settings.duplicates &&
     !force &&
+    candidate.code !== 'VAZIO' &&
     (await db.records
       .where('[sessionId+code+address]')
       .equals([session.id, candidate.code, candidate.address])
@@ -88,6 +91,10 @@ export async function appendRecord(
       message: 'Este item já foi registrado neste endereço.',
       duplicate: candidate,
     };
+  const bombona = settings.autoGalao
+    ? await nextBombona(session.id, candidate.address, !!candidate.sameGalao)
+    : null;
+  const galao = bombona?.galao ?? session.activeGalao;
   const record: InventoryRecord = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -96,7 +103,8 @@ export async function appendRecord(
     timestamp: Date.now(),
     order: session.nextOrder,
     source: candidate.source,
-    ...(session.activeGalao ? { galao: session.activeGalao } : {}),
+    ...(galao ? { galao } : {}),
+    ...(bombona ? { galaoGroup: bombona.group } : {}),
     ...(settings.saveRaw && candidate.raw ? { rawScan: candidate.raw } : {}),
   };
   await db.records.add(record);
@@ -140,6 +148,7 @@ export async function processScan(
   source: Source,
   settings: Settings,
   approvedChange?: AddressChangeCandidate,
+  options: { sameGalao?: boolean } = {},
 ): Promise<ScanResult> {
   return db.transaction('rw', db.sessions, db.records, db.history, async () => {
     const session = await db.sessions.get(sessionId);
@@ -230,7 +239,12 @@ export async function processScan(
         };
       } else if (transition.pair)
         result = await appendRecord(
-          { ...transition.pair, sessionId, paired: session.mode !== 'fixed' },
+          {
+            ...transition.pair,
+            sessionId,
+            paired: session.mode !== 'fixed',
+            sameGalao: options.sameGalao,
+          },
           settings,
         );
       else throw new Error('Não foi possível associar a leitura.');
@@ -326,10 +340,11 @@ export async function editRecords(
           source: 'manual',
           ...(product ? { code: product.normalized } : {}),
           ...(galaoValue !== undefined
-            ? { galao: galaoValue || undefined }
+            ? { galao: galaoValue || undefined, galaoGroup: undefined }
             : {}),
         });
     }
+    await renumberBombonas(sessionId);
     await db.sessions.update(sessionId, { updatedAt: Date.now() });
   });
 }
@@ -341,4 +356,26 @@ export async function setActiveGalao(sessionId: string, raw: string) {
 export async function setRecordDescription(id: string, description: string) {
   const value = description.trim().slice(0, 300);
   if (value) await db.records.update(id, { description: value });
+}
+/** Next automatic bombona for the street of an address (or the current one). */
+export async function nextBombona(
+  sessionId: string,
+  address: string,
+  same: boolean,
+) {
+  const street = extractStreet(address);
+  if (street === 'Sem rua') return null;
+  const rows = (
+    await db.records.where('sessionId').equals(sessionId).sortBy('order')
+  ).filter((r) => r.galaoGroup && extractStreet(r.address) === street);
+  const last = rows.at(-1);
+  if (same && last?.galaoGroup && last.galao)
+    return { galao: last.galao, group: last.galaoGroup };
+  return {
+    galao: bombonaLabel(
+      street,
+      new Set(rows.map((r) => r.galaoGroup)).size + 1,
+    ),
+    group: crypto.randomUUID(),
+  };
 }

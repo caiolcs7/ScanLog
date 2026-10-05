@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import {
   db,
+  bombonaLabel,
   removeRecords,
   restoreRecords,
   updateSession,
@@ -37,6 +38,7 @@ import {
   type AddressChangeCandidate,
 } from '../../core/scan-engine';
 import { statistics } from '../../core/statistics';
+import { extractStreet } from '../../core/parser';
 import {
   errorMessage,
   Loading,
@@ -82,7 +84,13 @@ export function SessionPage({
     pendingAddress = useRef<AddressChangeCandidate | null>(null),
     addressLock = useRef(false),
     scanQueue = useRef(Promise.resolve()),
-    duplicateLock = useRef(false);
+    duplicateLock = useRef(false),
+    sameGalaoRef = useRef(false);
+  const [sameGalao, setSameGalaoState] = useState(false);
+  function setSameGalao(value: boolean) {
+    sameGalaoRef.current = value;
+    setSameGalaoState(value);
+  }
   const notice = useNotice(),
     task = useTask();
   const blocked =
@@ -133,7 +141,9 @@ export function SessionPage({
         return;
       }
       try {
-        const scan = await processScan(id, raw, source, settings);
+        const scan = await processScan(id, raw, source, settings, undefined, {
+          sameGalao: settings.autoGalao && sameGalaoRef.current,
+        });
         result(scan);
         if (frame && scan.kind === 'product' && scan.record)
           describe(scan.record, frame);
@@ -266,6 +276,9 @@ export function SessionPage({
     currentCount = records.filter(
       (r) => r.address === session.activeAddress,
     ).length,
+    bombona = settings.autoGalao
+      ? nextBombonaPreview(records, session.activeAddress, sameGalao)
+      : null,
     galaoCount = session.activeGalao
       ? records.filter((r) => r.galao === session.activeGalao).length
       : 0;
@@ -380,77 +393,96 @@ export function SessionPage({
                   </span>
                 )}
               </div>
-              <div className="galao-bar">
-                <span className="galao-label">
-                  <Container />
-                  Galão
-                </span>
-                {editingGalao ? (
-                  <form
-                    className="galao-form"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const value = new FormData(e.currentTarget).get('galao');
-                      void task(async () => {
-                        await setActiveGalao(id, String(value ?? ''));
-                        setEditingGalao(false);
-                      });
-                    }}
+              {bombona !== null ? (
+                <div className="galao-bar">
+                  <span className="galao-label">
+                    <Container />
+                    {sameGalao ? 'Mesmo galão' : 'Próximo galão'}
+                  </span>
+                  <strong
+                    className={`galao-value mono ${bombona ? '' : 'empty'}`}
                   >
-                    <input
-                      name="galao"
-                      aria-label="Galão atual"
-                      className="mono"
-                      autoFocus
-                      autoComplete="off"
-                      autoCapitalize="characters"
-                      spellCheck={false}
-                      maxLength={32}
-                      placeholder="Ex.: R16G01"
-                      defaultValue={session.activeGalao}
-                    />
-                    <button className="primary" aria-label="Salvar galão">
-                      <Check />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label="Cancelar galão"
-                      onClick={() => setEditingGalao(false)}
+                    {bombona || 'Leia um endereço'}
+                  </strong>
+                  <span className="galao-count">Automático por rua</span>
+                </div>
+              ) : (
+                <div className="galao-bar">
+                  <span className="galao-label">
+                    <Container />
+                    Galão
+                  </span>
+                  {editingGalao ? (
+                    <form
+                      className="galao-form"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const value = new FormData(e.currentTarget).get(
+                          'galao',
+                        );
+                        void task(async () => {
+                          await setActiveGalao(id, String(value ?? ''));
+                          setEditingGalao(false);
+                        });
+                      }}
                     >
-                      <X />
-                    </button>
-                  </form>
-                ) : (
-                  <>
-                    <strong
-                      className={`galao-value mono ${session.activeGalao ? '' : 'empty'}`}
-                    >
-                      {session.activeGalao || 'Nenhum'}
-                    </strong>
-                    {session.activeGalao && (
-                      <span className="galao-count">{galaoCount} itens</span>
-                    )}
-                    <button
-                      className="text-button"
-                      disabled={blocked}
-                      onClick={() => setEditingGalao(true)}
-                    >
-                      {session.activeGalao ? 'Trocar' : 'Definir'}
-                    </button>
-                    {session.activeGalao && (
+                      <input
+                        name="galao"
+                        aria-label="Galão atual"
+                        className="mono"
+                        autoFocus
+                        autoComplete="off"
+                        autoCapitalize="characters"
+                        spellCheck={false}
+                        maxLength={32}
+                        placeholder="Ex.: R16G01"
+                        defaultValue={session.activeGalao}
+                      />
+                      <button className="primary" aria-label="Salvar galão">
+                        <Check />
+                      </button>
                       <button
+                        type="button"
                         className="icon-button"
-                        aria-label="Remover galão"
-                        disabled={blocked}
-                        onClick={() => void task(() => setActiveGalao(id, ''))}
+                        aria-label="Cancelar galão"
+                        onClick={() => setEditingGalao(false)}
                       >
                         <X />
                       </button>
-                    )}
-                  </>
-                )}
-              </div>
+                    </form>
+                  ) : (
+                    <>
+                      <strong
+                        className={`galao-value mono ${session.activeGalao ? '' : 'empty'}`}
+                      >
+                        {session.activeGalao || 'Nenhum'}
+                      </strong>
+                      {session.activeGalao && (
+                        <span className="galao-count">{galaoCount} itens</span>
+                      )}
+                      <button
+                        className="text-button"
+                        disabled={blocked}
+                        onClick={() => setEditingGalao(true)}
+                      >
+                        {session.activeGalao ? 'Trocar' : 'Definir'}
+                      </button>
+                      {session.activeGalao && (
+                        <button
+                          className="icon-button"
+                          aria-label="Remover galão"
+                          disabled={blocked}
+                          onClick={() =>
+                            void task(() => setActiveGalao(id, ''))
+                          }
+                        >
+                          <X />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
               <div className="mode-select">
                 <label htmlFor="session-mode">Modo de leitura</label>
                 <select
@@ -569,6 +601,11 @@ export function SessionPage({
               settings={settings}
               blocked={blocked}
               onScan={receive}
+              sameGalao={
+                settings.autoGalao
+                  ? { active: sameGalao, set: setSameGalao }
+                  : undefined
+              }
             />
             <div className="scan-side">
               <div className="quick-actions">
@@ -751,6 +788,20 @@ export function SessionPage({
       )}
     </main>
   );
+}
+function nextBombonaPreview(
+  records: InventoryRecord[],
+  address: string,
+  same: boolean,
+) {
+  const street = extractStreet(address);
+  if (!address || street === 'Sem rua') return '';
+  const rows = records.filter(
+    (r) => r.galaoGroup && extractStreet(r.address) === street,
+  );
+  const last = rows.at(-1);
+  if (same && last?.galao) return last.galao;
+  return bombonaLabel(street, new Set(rows.map((r) => r.galaoGroup)).size + 1);
 }
 function expected(session: Session) {
   const type = session.pending

@@ -25,6 +25,7 @@ export const settingsSchema = z.object({
   duplicates: z.boolean(),
   saveRaw: z.boolean(),
   readDescription: z.boolean().default(false),
+  autoGalao: z.boolean().default(false),
   theme: z.enum(['light', 'dark', 'system']),
   exportFormat: z.enum(['xlsx', 'csv']),
   rules: rulesSchema,
@@ -44,6 +45,7 @@ export const defaultSettings: Settings = {
   duplicates: true,
   saveRaw: false,
   readDescription: false,
+  autoGalao: false,
   theme: 'light',
   exportFormat: 'xlsx',
   rules: {
@@ -96,6 +98,7 @@ export const recordSchema = z.object({
   source: sourceSchema,
   rawScan: z.string().max(2048).optional(),
   galao: z.string().max(32).optional(),
+  galaoGroup: z.string().max(64).optional(),
   description: z.string().max(300).optional(),
 });
 export type InventoryRecord = z.infer<typeof recordSchema>;
