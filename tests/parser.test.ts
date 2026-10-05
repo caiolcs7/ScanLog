@@ -52,14 +52,12 @@ describe('central parser', () => {
     'R07A1GHBEG01',
     'R07A1AVFEG01',
     'R12A10XYZ99',
-  ])(
-    'keeps each R address classified as a location: %s',
-    (value) =>
-      expect(parseScan(value, rules)).toMatchObject({
-        valid: true,
-        type: 'address',
-        normalized: value,
-      }),
+  ])('keeps each R address classified as a location: %s', (value) =>
+    expect(parseScan(value, rules)).toMatchObject({
+      valid: true,
+      type: 'address',
+      normalized: value,
+    }),
   );
   it('removes the site prefix encoded before a complete address', () =>
     expect(parseScan('A1;R02A1C01EP02', rules)).toMatchObject({

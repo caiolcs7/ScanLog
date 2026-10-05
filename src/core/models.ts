@@ -26,6 +26,7 @@ export const settingsSchema = z.object({
   saveRaw: z.boolean(),
   readDescription: z.boolean().default(false),
   autoGalao: z.boolean().default(false),
+  galaoStart: z.number().int().min(1).max(999).default(1),
   theme: z.enum(['light', 'dark', 'system']),
   exportFormat: z.enum(['xlsx', 'csv']),
   rules: rulesSchema,
@@ -46,6 +47,7 @@ export const defaultSettings: Settings = {
   saveRaw: false,
   readDescription: false,
   autoGalao: false,
+  galaoStart: 1,
   theme: 'light',
   exportFormat: 'xlsx',
   rules: {

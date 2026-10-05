@@ -74,4 +74,21 @@ describe('automatic bombonas', () => {
       'duplicate',
     );
   });
+  it('starts at a configured bombona number', async () => {
+    const s = await createSession('Inicio', 'fixed');
+    const start = { ...settings, galaoStart: 5 };
+    await db.settings.update('main', { galaoStart: 5 });
+    await processScan(s.id, 'R15A1C05EP01', 'hid', start);
+    await processScan(s.id, 'ITA001', 'hid', start);
+    await processScan(s.id, 'ITA002', 'hid', start);
+    expect(await rows(s.id)).toEqual([
+      ['ITA001', 'R15G05'],
+      ['ITA002', 'R15G06'],
+    ]);
+    const first = (await db.records.toArray()).find(
+      (r) => r.code === 'ITA001',
+    )!;
+    await removeRecords(s.id, [first.id]);
+    expect(await rows(s.id)).toEqual([['ITA002', 'R15G05']]);
+  });
 });

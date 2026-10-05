@@ -148,22 +148,28 @@ export async function duplicateSession(id: string) {
   });
 }
 export async function removeRecords(sessionId: string, ids: string[]) {
-  return db.transaction('rw', db.sessions, db.records, async () => {
-    const records = (await db.records.bulkGet(ids)).filter(
-      (r): r is InventoryRecord => !!r && r.sessionId === sessionId,
-    );
-    await db.records.bulkDelete(records.map((r) => r.id));
-    await renumberBombonas(sessionId);
-    await db.sessions.update(sessionId, {
-      count: await db.records.where('sessionId').equals(sessionId).count(),
-      updatedAt: Date.now(),
-    });
-    return records;
-  });
+  return db.transaction(
+    'rw',
+    db.sessions,
+    db.records,
+    db.settings,
+    async () => {
+      const records = (await db.records.bulkGet(ids)).filter(
+        (r): r is InventoryRecord => !!r && r.sessionId === sessionId,
+      );
+      await db.records.bulkDelete(records.map((r) => r.id));
+      await renumberBombonas(sessionId);
+      await db.sessions.update(sessionId, {
+        count: await db.records.where('sessionId').equals(sessionId).count(),
+        updatedAt: Date.now(),
+      });
+      return records;
+    },
+  );
 }
 export async function restoreRecords(records: InventoryRecord[]) {
   if (!records.length) return;
-  await db.transaction('rw', db.records, db.sessions, async () => {
+  await db.transaction('rw', db.records, db.sessions, db.settings, async () => {
     const session = await db.sessions.get(records[0].sessionId);
     if (!session) throw new Error('O levantamento foi excluído.');
     for (const record of records)
@@ -193,14 +199,15 @@ export async function clearAllData() {
     },
   );
 }
-export function bombonaLabel(street: string, index: number) {
-  return `${street}G${String(index).padStart(2, '0')}`;
+export function bombonaLabel(street: string, index: number, start = 1) {
+  return `${street}G${String(index + start - 1).padStart(2, '0')}`;
 }
 /**
  * Automatic bombonas are numbered per street in reading order (R14G01,
  * R14G02…). Removing or moving records keeps each street contiguous.
  */
 export async function renumberBombonas(sessionId: string) {
+  const start = (await db.settings.get('main'))?.galaoStart ?? 1;
   const rows = await db.records
     .where('sessionId')
     .equals(sessionId)
@@ -214,7 +221,7 @@ export async function renumberBombonas(sessionId: string) {
     if (!streetGroups.has(row.galaoGroup))
       streetGroups.set(
         row.galaoGroup,
-        bombonaLabel(street, streetGroups.size + 1),
+        bombonaLabel(street, streetGroups.size + 1, start),
       );
     const galao = streetGroups.get(row.galaoGroup)!;
     if (row.galao !== galao) await db.records.update(row.id, { galao });

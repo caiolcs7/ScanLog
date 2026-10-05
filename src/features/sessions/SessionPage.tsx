@@ -19,6 +19,7 @@ import {
   db,
   bombonaLabel,
   removeRecords,
+  renumberBombonas,
   restoreRecords,
   updateSession,
 } from '../../core/database';
@@ -277,7 +278,12 @@ export function SessionPage({
       (r) => r.address === session.activeAddress,
     ).length,
     bombona = settings.autoGalao
-      ? nextBombonaPreview(records, session.activeAddress, sameGalao)
+      ? nextBombonaPreview(
+          records,
+          session.activeAddress,
+          sameGalao,
+          settings.galaoStart ?? 1,
+        )
       : null,
     galaoCount = session.activeGalao
       ? records.filter((r) => r.galao === session.activeGalao).length
@@ -391,6 +397,52 @@ export function SessionPage({
                     <Check />
                     Concluído
                   </span>
+                )}
+              </div>
+              <div className="bombona-switch">
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={settings.autoGalao}
+                    disabled={blocked}
+                    onChange={(e) => {
+                      const autoGalao = e.target.checked;
+                      setSameGalao(false);
+                      void task(() =>
+                        db.settings.update('main', { autoGalao }),
+                      );
+                    }}
+                  />
+                  <span className="switch-track" aria-hidden="true" />
+                  Bombonas automáticas
+                </label>
+                {settings.autoGalao && (
+                  <label className="bombona-start">
+                    Começar em G
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={999}
+                      value={settings.galaoStart ?? 1}
+                      onChange={(e) => {
+                        const galaoStart = Math.min(
+                          999,
+                          Math.max(1, Math.trunc(Number(e.target.value)) || 1),
+                        );
+                        void task(async () => {
+                          await db.settings.update('main', { galaoStart });
+                          await db.transaction(
+                            'rw',
+                            db.records,
+                            db.settings,
+                            () => renumberBombonas(id),
+                          );
+                        });
+                      }}
+                    />
+                  </label>
                 )}
               </div>
               {bombona !== null ? (
@@ -793,6 +845,7 @@ function nextBombonaPreview(
   records: InventoryRecord[],
   address: string,
   same: boolean,
+  start: number,
 ) {
   const street = extractStreet(address);
   if (!address || street === 'Sem rua') return '';
@@ -801,7 +854,11 @@ function nextBombonaPreview(
   );
   const last = rows.at(-1);
   if (same && last?.galao) return last.galao;
-  return bombonaLabel(street, new Set(rows.map((r) => r.galaoGroup)).size + 1);
+  return bombonaLabel(
+    street,
+    new Set(rows.map((r) => r.galaoGroup)).size + 1,
+    start,
+  );
 }
 function expected(session: Session) {
   const type = session.pending

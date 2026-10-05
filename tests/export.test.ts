@@ -105,7 +105,9 @@ describe('real XLSX output', () => {
       ...(i === 0 ? { description: 'CONTRA PORCA METRICA 16' } : {}),
     }));
     const loaded = new ExcelJS.Workbook();
-    await loaded.xlsx.load(await createWorkbook(session, tagged).xlsx.writeBuffer());
+    await loaded.xlsx.load(
+      await createWorkbook(session, tagged).xlsx.writeBuffer(),
+    );
     const sheet = loaded.worksheets[0];
     expect(sheet.getRow(5).values).toEqual([
       undefined,
