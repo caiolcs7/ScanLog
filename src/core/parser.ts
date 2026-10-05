@@ -125,7 +125,9 @@ export function parseScan(raw: string, rules: Rules): ParsedScan {
   }
   const warnings: string[] = [];
   const gs1Payload = unwrapGs1(raw);
-  const structuredAddress = gs1Payload ? null : normalizeStructuredAddress(raw, rules);
+  const structuredAddress = gs1Payload
+    ? null
+    : normalizeStructuredAddress(raw, rules);
   let normalized = gs1Payload ?? structuredAddress ?? cleanText(raw);
   if (gs1Payload) warnings.push('Identificadores GS1 removidos.');
   else if (structuredAddress && structuredAddress !== cleanText(raw))
@@ -134,10 +136,7 @@ export function parseScan(raw: string, rules: Rules): ParsedScan {
   // Address labels include the warehouse/site prefix before a semicolon,
   // for example A1;R02A1C01EP02. Keep only the structured location payload.
   const addressEnvelope = /^[^;]{1,20};(.+)$/.exec(normalized);
-  if (
-    addressEnvelope &&
-    matchesAddress(addressEnvelope[1], rules)
-  ) {
+  if (addressEnvelope && matchesAddress(addressEnvelope[1], rules)) {
     normalized = addressEnvelope[1];
     warnings.push('Prefixo da etiqueta de endereço removido.');
   }
@@ -203,4 +202,18 @@ export function extractStreet(address: string): string {
 }
 export function searchText(value: string): string {
   return cleanText(value);
+}
+/**
+ * Galão labels identify the storage container (e.g. R16G01). They hold many
+ * products, so a scanned galão becomes sticky context, like the address.
+ */
+export function parseGalao(raw: string): string | null {
+  const value = cleanText(raw).replace(/[^A-Z0-9]/g, '');
+  return /^R[0-9]{1,3}G[0-9]{1,3}$/.test(value) ? value : null;
+}
+/** Manual galão entry: any short alphanumeric identifier. */
+export function normalizeGalao(raw: string): string {
+  const value = cleanText(raw).replace(/[^A-Z0-9._/-]/g, '');
+  if (value.length > 32) throw new Error('Galão com até 32 caracteres.');
+  return value;
 }

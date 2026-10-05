@@ -1,6 +1,6 @@
 import { db } from './database';
 import type { InventoryRecord, Session, Settings, Source } from './models';
-import { parseScan } from './parser';
+import { normalizeGalao, parseGalao, parseScan } from './parser';
 
 export type DuplicateCandidate = {
   code: string;
@@ -13,6 +13,7 @@ export type DuplicateCandidate = {
 export type ScanResult = {
   kind:
     | 'address'
+    | 'galao'
     | 'product'
     | 'waiting'
     | 'error'
@@ -95,6 +96,7 @@ export async function appendRecord(
     timestamp: Date.now(),
     order: session.nextOrder,
     source: candidate.source,
+    ...(session.activeGalao ? { galao: session.activeGalao } : {}),
     ...(settings.saveRaw && candidate.raw ? { rawScan: candidate.raw } : {}),
   };
   await db.records.add(record);
@@ -153,6 +155,19 @@ export async function processScan(
       throw new Error(
         'O levantamento mudou durante a confirmação. Cancele e leia o endereço novamente.',
       );
+    const galao = parseGalao(raw);
+    if (galao) {
+      await db.sessions.update(sessionId, {
+        activeGalao: galao,
+        updatedAt: Date.now(),
+      });
+      const message =
+        session.activeGalao && session.activeGalao !== galao
+          ? `Galão alterado: ${session.activeGalao} → ${galao}`
+          : 'Galão selecionado';
+      await history(sessionId, source, raw, galao, message, settings);
+      return { kind: 'galao', message, value: galao };
+    }
     const scan = parseScan(raw, settings.rules);
     let result: ScanResult;
     if (!scan.valid || scan.type === 'unknown')
@@ -293,7 +308,9 @@ export async function editRecords(
   address: string,
   settings: Settings,
   code?: string,
+  galao?: string,
 ) {
+  const galaoValue = galao === undefined ? undefined : normalizeGalao(galao);
   const location = parseScan(address, settings.rules),
     product = code === undefined ? undefined : parseScan(code, settings.rules);
   if (location.type !== 'address' || !location.valid)
@@ -308,8 +325,20 @@ export async function editRecords(
           address: location.normalized,
           source: 'manual',
           ...(product ? { code: product.normalized } : {}),
+          ...(galaoValue !== undefined
+            ? { galao: galaoValue || undefined }
+            : {}),
         });
     }
     await db.sessions.update(sessionId, { updatedAt: Date.now() });
   });
+}
+export async function setActiveGalao(sessionId: string, raw: string) {
+  const activeGalao = normalizeGalao(raw);
+  await db.sessions.update(sessionId, { activeGalao, updatedAt: Date.now() });
+  return activeGalao;
+}
+export async function setRecordDescription(id: string, description: string) {
+  const value = description.trim().slice(0, 300);
+  if (value) await db.records.update(id, { description: value });
 }

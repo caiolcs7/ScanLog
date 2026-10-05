@@ -17,6 +17,7 @@ import { decodeImage } from '../../services/decoder';
 import { useHid, usePageVisible, useWakeLock } from '../../hooks/useHardware';
 import { errorMessage, useNotice, useTask } from '../../components/ui';
 import { unlockAudio } from '../../services/feedback';
+import { warmUpOcr } from '../../services/ocr';
 import { db } from '../../core/database';
 
 export function ScannerPanel({
@@ -26,7 +27,11 @@ export function ScannerPanel({
 }: {
   settings: Settings;
   blocked: boolean;
-  onScan: (raw: string, source: Source) => Promise<void>;
+  onScan: (
+    raw: string,
+    source: Source,
+    frame?: HTMLCanvasElement,
+  ) => Promise<void>;
 }) {
   const [input, setInput] = useState(settings.input),
     [active, setActive] = useState(false),
@@ -51,10 +56,17 @@ export function ScannerPanel({
     task = useTask();
   const service = useMemo(
     () =>
-      new ScannerService((raw) => scanRef.current(raw, 'camera'), setCamera),
+      new ScannerService(
+        (raw, frame) => scanRef.current(raw, 'camera', frame),
+        setCamera,
+      ),
     [],
   );
   const scanning = active && visible && input === 'camera' && !blocked;
+  useEffect(() => {
+    service.setFrameCapture(settings.readDescription);
+    if (settings.readDescription) warmUpOcr();
+  }, [service, settings.readDescription]);
   useEffect(() => {
     service.setCapture(settings.cameraCapture ?? 'button');
   }, [service, settings.cameraCapture]);
@@ -184,7 +196,7 @@ export function ScannerPanel({
           </div>
           {camera.running && settings.cameraCapture !== 'continuous' && (
             <button
-              className="primary capture-button"
+              className="accent capture-button"
               disabled={blocked}
               onClick={() => {
                 unlockAudio();
@@ -198,7 +210,7 @@ export function ScannerPanel({
           )}
           <div className="camera-controls">
             <button
-              className={camera.running ? '' : 'primary'}
+              className={camera.running ? '' : 'accent'}
               disabled={blocked}
               onClick={() => {
                 unlockAudio();

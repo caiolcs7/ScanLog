@@ -33,6 +33,7 @@ export class ScannerService {
   private decoder = new LocalDecoder();
   private gate = new ScanGate();
   private capture: Settings['cameraCapture'] = 'button';
+  private keepFrame = false;
   private attempt = 0;
   private until = 0;
   private expiry: ReturnType<typeof setTimeout> | undefined;
@@ -51,12 +52,28 @@ export class ScannerService {
     devices: [],
   };
   constructor(
-    private onScan: (raw: string) => Promise<void>,
+    private onScan: (raw: string, frame?: HTMLCanvasElement) => Promise<void>,
     private onState: (state: CameraState) => void,
   ) {}
   setCapture(mode: Settings['cameraCapture']) {
     this.capture = mode;
     this.cancelRead();
+  }
+  /** When enabled, each accepted read hands over a transient frame copy for OCR. */
+  setFrameCapture(enabled: boolean) {
+    this.keepFrame = enabled;
+  }
+  private snapshot(canvas: HTMLCanvasElement) {
+    if (!this.keepFrame) return undefined;
+    const copy = document.createElement('canvas');
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    copy.getContext('2d')?.drawImage(canvas, 0, 0);
+    return copy;
+  }
+  private deliver(raw: string, canvas: HTMLCanvasElement) {
+    const frame = this.snapshot(canvas);
+    return frame ? this.onScan(raw, frame) : this.onScan(raw);
   }
   requestRead() {
     if (!this.state.running || this.capture !== 'button' || this.until) return;
@@ -267,12 +284,12 @@ export class ScannerService {
             this.cancelRead(
               'Leitura concluída. Toque em Ler código para a próxima etiqueta.',
             );
-            await this.onScan(unique[0]);
+            await this.deliver(unique[0], canvas);
           } else if (this.gate.accept(cleanText(unique[0]), Date.now())) {
             this.publish({
               message: 'Etiqueta lida. Aponte para a próxima dentro da mira.',
             });
-            await this.onScan(unique[0]);
+            await this.deliver(unique[0], canvas);
           } else
             this.publish({
               message:

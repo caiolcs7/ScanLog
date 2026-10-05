@@ -225,6 +225,12 @@ export function SettingsPage({ settings }: { settings: Settings }) {
               onChange={(value) => change('autoTorch', value)}
             />
             <Toggle
+              title="Ler descritivo da etiqueta"
+              description="Ao ler um produto pela câmera, reconhece o texto impresso (OCR no aparelho) e preenche a coluna Descritivo. A imagem é descartada logo após a leitura. Na primeira vez, baixa o modelo de português (~2 MB)."
+              checked={form.readDescription}
+              onChange={(value) => change('readDescription', value)}
+            />
+            <Toggle
               title="Avisar sobre duplicados"
               description="Pergunta antes de adicionar o mesmo código no mesmo endereço. O bloqueio de frames repetidos da câmera permanece ativo."
               checked={form.duplicates}
