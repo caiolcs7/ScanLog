@@ -92,7 +92,12 @@ export async function appendRecord(
       duplicate: candidate,
     };
   const bombona = settings.autoGalao
-    ? await nextBombona(session.id, candidate.address, !!candidate.sameGalao)
+    ? await nextBombona(
+        session.id,
+        candidate.address,
+        !!candidate.sameGalao,
+        settings.galaoStart ?? 1,
+      )
     : null;
   const galao = bombona?.galao ?? session.activeGalao;
   const record: InventoryRecord = {
@@ -331,7 +336,7 @@ export async function editRecords(
     throw new Error('Endereço fora do padrão configurado.');
   if (product && (product.type !== 'product' || !product.valid))
     throw new Error('Código fora do padrão configurado.');
-  await db.transaction('rw', db.sessions, db.records, async () => {
+  await db.transaction('rw', db.sessions, db.records, db.settings, async () => {
     for (const id of ids) {
       const row = await db.records.get(id);
       if (row?.sessionId === sessionId)
@@ -362,6 +367,7 @@ export async function nextBombona(
   sessionId: string,
   address: string,
   same: boolean,
+  start = 1,
 ) {
   const street = extractStreet(address);
   if (street === 'Sem rua') return null;
@@ -375,6 +381,7 @@ export async function nextBombona(
     galao: bombonaLabel(
       street,
       new Set(rows.map((r) => r.galaoGroup)).size + 1,
+      start,
     ),
     group: crypto.randomUUID(),
   };

@@ -152,7 +152,9 @@ describe('upgrade from the published database v1', () => {
       await updated.open();
       expect(updated.verno).toBe(6);
       const saved = (await updated.settings.get('main'))!;
-      expect(saved.rules.addressPatterns).toEqual(defaultSettings.rules.addressPatterns);
+      expect(saved.rules.addressPatterns).toEqual(
+        defaultSettings.rules.addressPatterns,
+      );
       expect(parseScan('R07A1GHBEG01', saved.rules)).toMatchObject({
         valid: true,
         type: 'address',
