@@ -56,7 +56,40 @@ function Application() {
     needRefresh: [needRefresh],
   } = useRegisterSW({
     onRegisterError: () => setSwError(true),
+    onRegisteredSW: (_url, registration) => {
+      if (!registration) return;
+      // Installed PWAs can stay open for days: look for new versions
+      // periodically and whenever the app returns to the foreground.
+      const check = () => void registration.update().catch(() => {});
+      setInterval(check, 15 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check();
+      });
+    },
   });
+  const applyUpdate = () =>
+    void task(async () => {
+      setUpdating(true);
+      try {
+        await db.transaction(
+          'rw',
+          db.sessions,
+          db.records,
+          db.history,
+          async () => {},
+        );
+        await activateWaitingUpdate();
+      } catch (error) {
+        setUpdating(false);
+        notice(errorMessage(error), 'error');
+      }
+    });
+  const scanning = /^\/session\/[^/]+\/scanner$/.test(route);
+  useEffect(() => {
+    // Outside a scanning screen nothing is in flight, so update right away.
+    if (needRefresh && ready && !scanning && !updating) applyUpdate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needRefresh, ready, scanning]);
   useEffect(() => {
     if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
     let cancelled = false;
@@ -196,27 +229,7 @@ function Application() {
             <RefreshCw />
             Nova versão disponível. Seus levantamentos serão preservados.
           </span>
-          <button
-            disabled={updating}
-            onClick={() =>
-              void task(async () => {
-                setUpdating(true);
-                try {
-                  await db.transaction(
-                    'rw',
-                    db.sessions,
-                    db.records,
-                    db.history,
-                    async () => {},
-                  );
-                  await activateWaitingUpdate();
-                } catch (error) {
-                  setUpdating(false);
-                  notice(errorMessage(error), 'error');
-                }
-              })
-            }
-          >
+          <button disabled={updating} onClick={applyUpdate}>
             Atualizar
           </button>
         </div>
