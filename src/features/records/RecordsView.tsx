@@ -87,7 +87,11 @@ export function RecordsView({
     return records
       .filter(
         (r) =>
-          (!query || r.code.includes(query) || r.address.includes(query)) &&
+          (!query ||
+            r.code.includes(query) ||
+            r.address.includes(query) ||
+            !!r.galao?.includes(query) ||
+            !!r.description?.replace(/\s/g, '').includes(query)) &&
           (!street || extractStreet(r.address) === street) &&
           (!address || r.address === address) &&
           (!review || issues.has(r.id)),
@@ -261,6 +265,7 @@ export function RecordsView({
               <th className="order-cell">Ordem</th>
               <th>Código do Produto</th>
               <th>Endereço</th>
+              <th>Galão</th>
               <th className="time-cell">Leitura</th>
               <th>
                 <span className="sr-only">Ações</span>
@@ -299,6 +304,11 @@ export function RecordsView({
                       <Copy />
                     </button>
                   </div>
+                  {record.description && (
+                    <span className="record-description">
+                      {record.description}
+                    </span>
+                  )}
                   {review &&
                     issues.get(record.id)?.map((reason) => (
                       <span className="issue-tag" key={reason}>
@@ -317,6 +327,9 @@ export function RecordsView({
                       <Copy />
                     </button>
                   </div>
+                </td>
+                <td className="record-galao">
+                  {record.galao ? <code>{record.galao}</code> : '—'}
                 </td>
                 <td className="time-cell">
                   {dateTime(record.timestamp)}
@@ -419,13 +432,14 @@ export function RecordsView({
           rows={editing}
           settings={settings}
           onClose={() => setEditing(null)}
-          onSave={async (newAddress, newCode) => {
+          onSave={async (newAddress, newCode, newGalao) => {
             await editRecords(
               session.id,
               editing.map((r) => r.id),
               newAddress,
               settings,
               newCode,
+              newGalao,
             );
             setSelected(new Set());
             notice('Registros atualizados.', 'success');
@@ -461,11 +475,14 @@ function EditDialog({
 }: {
   rows: InventoryRecord[];
   settings: Settings;
-  onSave: (address: string, code?: string) => Promise<void>;
+  onSave: (address: string, code?: string, galao?: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [code, setCode] = useState(rows[0].code),
     [address, setAddress] = useState(rows.length === 1 ? rows[0].address : ''),
+    [galao, setGalao] = useState(
+      rows.length === 1 ? (rows[0].galao ?? '') : '',
+    ),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
   return (
@@ -482,7 +499,11 @@ function EditDialog({
           e.preventDefault();
           setBusy(true);
           try {
-            await onSave(address, rows.length === 1 ? code : undefined);
+            await onSave(
+              address,
+              rows.length === 1 ? code : undefined,
+              rows.length === 1 || galao.trim() ? galao : undefined,
+            );
             onClose();
           } catch (err) {
             setError(errorMessage(err));
@@ -513,6 +534,17 @@ function EditDialog({
             maxLength={128}
             value={address}
             onChange={(e) => setAddress(e.target.value)}
+          />
+        </label>
+        <label>
+          Galão
+          <input
+            className="mono"
+            maxLength={32}
+            autoCapitalize="characters"
+            placeholder={rows.length === 1 ? 'Sem galão' : 'Manter atual'}
+            value={galao}
+            onChange={(e) => setGalao(e.target.value)}
           />
         </label>
         <p className="helper">

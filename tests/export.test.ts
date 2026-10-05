@@ -17,6 +17,7 @@ const session: Session = {
   count: 3,
   nextOrder: 4,
   activeAddress: 'R01A1C04DP02',
+  activeGalao: '',
   mode: 'fixed',
   pending: null,
   completedAddresses: [],
@@ -35,18 +36,19 @@ const rows: InventoryRecord[] = [
   source: 'hid',
 }));
 describe('real XLSX output', () => {
-  it('writes and opens an actual workbook with exactly two business columns', async () => {
+  it('writes and opens an actual workbook with product, address and galão columns', async () => {
     const buffer = await createWorkbook(session, rows).xlsx.writeBuffer();
     expect(buffer.byteLength).toBeGreaterThan(1000);
     const loaded = new ExcelJS.Workbook();
     await loaded.xlsx.load(buffer);
     const sheet = loaded.getWorksheet('Todos os registros')!;
     expect(sheet).toBeDefined();
-    expect(sheet.columnCount).toBe(2);
+    expect(sheet.columnCount).toBe(3);
     expect(sheet.getRow(5).values).toEqual([
       undefined,
       'Código do Produto',
       'Endereço',
+      'Galão',
     ]);
     expect(sheet.rowCount).toBe(8);
     expect(
@@ -59,7 +61,7 @@ describe('real XLSX output', () => {
     expect(sheet.getCell('A5').font.bold).toBe(true);
     expect(sheet.getCell('A6').numFmt).toBe('@');
     expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 5 });
-    expect(sheet.autoFilter).toBe('A5:B8');
+    expect(sheet.autoFilter).toBe('A5:C8');
     expect(sheet.pageSetup.fitToWidth).toBe(1);
   });
   it('supports street sheets and export ordering without mutating records', () => {
@@ -83,17 +85,40 @@ describe('real XLSX output', () => {
   });
   it('writes valid empty session workbook', async () => {
     const workbook = createWorkbook({ ...session, count: 0 }, []);
-    expect(workbook.worksheets[0].columnCount).toBe(2);
+    expect(workbook.worksheets[0].columnCount).toBe(3);
     expect((await workbook.xlsx.writeBuffer()).byteLength).toBeGreaterThan(
       1000,
     );
   });
-  it('sanitizes filenames and makes CSV with two columns', () => {
+  it('sanitizes filenames and makes CSV with galão column', () => {
     expect(reportFilename({ ...session, name: 'Teste / R01 : *' })).not.toMatch(
       /[/\\:*?<>|]/,
     );
     const csv = createCsv(rows, 'order');
-    expect(csv).toContain('"Código do Produto";"Endereço"');
+    expect(csv).toContain('"Código do Produto";"Endereço";"Galão"');
     expect(csv.split('\r\n')).toHaveLength(4);
+  });
+  it('adds galão and descritivo values when present', async () => {
+    const tagged = rows.map((r, i) => ({
+      ...r,
+      galao: 'R16G01',
+      ...(i === 0 ? { description: 'CONTRA PORCA METRICA 16' } : {}),
+    }));
+    const loaded = new ExcelJS.Workbook();
+    await loaded.xlsx.load(await createWorkbook(session, tagged).xlsx.writeBuffer());
+    const sheet = loaded.worksheets[0];
+    expect(sheet.getRow(5).values).toEqual([
+      undefined,
+      'Código do Produto',
+      'Endereço',
+      'Galão',
+      'Descritivo',
+    ]);
+    expect(sheet.getCell('C6').value).toBe('R16G01');
+    expect(sheet.getCell('D6').value).toBe('CONTRA PORCA METRICA 16');
+    expect(sheet.getCell('D7').value).toBe('');
+    expect(createCsv(tagged, 'order')).toContain(
+      '"ITPFPHM510ESAI4";"R01A1C03DP02";"R16G01";"CONTRA PORCA METRICA 16"',
+    );
   });
 });

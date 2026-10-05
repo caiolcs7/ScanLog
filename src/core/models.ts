@@ -24,6 +24,7 @@ export const settingsSchema = z.object({
   input: z.enum(['camera', 'hid']),
   duplicates: z.boolean(),
   saveRaw: z.boolean(),
+  readDescription: z.boolean().default(false),
   theme: z.enum(['light', 'dark', 'system']),
   exportFormat: z.enum(['xlsx', 'csv']),
   rules: rulesSchema,
@@ -42,6 +43,7 @@ export const defaultSettings: Settings = {
   input: 'camera',
   duplicates: true,
   saveRaw: false,
+  readDescription: false,
   theme: 'light',
   exportFormat: 'xlsx',
   rules: {
@@ -71,6 +73,7 @@ export const sessionSchema = z.object({
   count: z.number().int().nonnegative(),
   nextOrder: z.number().int().positive(),
   activeAddress: z.string().max(128),
+  activeGalao: z.string().max(32).default(''),
   mode: z.enum(['fixed', 'product-address', 'address-product']),
   pending: z
     .object({
@@ -92,6 +95,8 @@ export const recordSchema = z.object({
   order: z.number().int().positive(),
   source: sourceSchema,
   rawScan: z.string().max(2048).optional(),
+  galao: z.string().max(32).optional(),
+  description: z.string().max(300).optional(),
 });
 export type InventoryRecord = z.infer<typeof recordSchema>;
 export const historySchema = z.object({

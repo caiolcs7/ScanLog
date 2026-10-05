@@ -11,3 +11,4 @@ playwright-report/
 .impeccable/tmp/
 artifacts/
 .claude/
+*.traineddata

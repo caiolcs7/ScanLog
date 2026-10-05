@@ -33,6 +33,18 @@ export function reportFilename(session: Session, format = 'xlsx') {
   const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   return `Relatorio_Almoxarifado_${name}_${localDate}.${format}`;
 }
+export function exportColumns(records: InventoryRecord[]) {
+  const headers = ['Código do Produto', 'Endereço', 'Galão'];
+  const withDescription = records.some((r) => r.description);
+  if (withDescription) headers.push('Descritivo');
+  return {
+    headers,
+    row: (r: InventoryRecord) =>
+      withDescription
+        ? [r.code, r.address, r.galao ?? '', r.description ?? '']
+        : [r.code, r.address, r.galao ?? ''],
+  };
+}
 export function createWorkbook(
   session: Session,
   records: InventoryRecord[],
@@ -42,6 +54,8 @@ export function createWorkbook(
   workbook.creator = 'Leitor de Almoxarifado';
   workbook.created = new Date();
   const sorted = sortRecords(records, options.sort);
+  const columns = exportColumns(records);
+  const last = String.fromCharCode(64 + columns.headers.length);
   const groups = new Map<string, InventoryRecord[]>([
     ['Todos os registros', sorted],
   ]);
@@ -85,8 +99,12 @@ export function createWorkbook(
           rows.reduce((width, r) => Math.max(width, r.address.length + 3), 27),
         ),
       },
+      { key: 'galao', width: 16 },
+      ...(columns.headers.length > 3
+        ? [{ key: 'description', width: 60 }]
+        : []),
     ];
-    sheet.mergeCells('A1:B1');
+    sheet.mergeCells(`A1:${last}1`);
     sheet.getCell('A1').value = 'RELATÓRIO DE LOCALIZAÇÃO DE MATERIAIS';
     sheet.getRow(1).height = 34;
     sheet.getCell('A1').font = {
@@ -98,28 +116,28 @@ export function createWorkbook(
     sheet.getCell('A1').fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF203740' },
+      fgColor: { argb: 'FF3B1A5A' },
     };
-    sheet.mergeCells('A2:B2');
+    sheet.mergeCells(`A2:${last}2`);
     sheet.getCell('A2').value = session.name;
     sheet.getRow(2).height = 26;
     sheet.getCell('A2').font = {
       name: 'Calibri',
       size: 12,
       bold: true,
-      color: { argb: 'FF203740' },
+      color: { argb: 'FF3B1A5A' },
     };
-    sheet.mergeCells('A3:B3');
+    sheet.mergeCells(`A3:${last}3`);
     sheet.getCell('A3').value =
       `${new Date(session.createdAt).toLocaleDateString('pt-BR')}  •  ${rows.length} registros`;
     sheet.getRow(3).height = 22;
     sheet.getCell('A3').font = {
       name: 'Calibri',
       size: 10,
-      color: { argb: 'FF53666D' },
+      color: { argb: 'FF6B6178' },
     };
     sheet.getRow(4).height = 10;
-    sheet.getRow(5).values = ['Código do Produto', 'Endereço'];
+    sheet.getRow(5).values = columns.headers;
     sheet.getRow(5).height = 28;
     sheet.getRow(5).eachCell((cell) => {
       cell.font = {
@@ -131,30 +149,38 @@ export function createWorkbook(
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FF203740' },
+        fgColor: { argb: 'FF3B1A5A' },
       };
       cell.alignment = { vertical: 'middle', indent: 1 };
     });
     rows.forEach((record, index) => {
-      const row = sheet.addRow([record.code, record.address]);
+      const row = sheet.addRow(columns.row(record));
       row.height = 24;
-      row.eachCell((cell) => {
+      row.eachCell((cell, column) => {
         cell.numFmt = '@';
-        cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF203740' } };
-        cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF3B1A5A' } };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: 'left',
+          indent: 1,
+          wrapText: column === 4,
+        };
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: index % 2 === 0 ? 'FFFFFFFF' : 'FFF0F4F5' },
+          fgColor: { argb: index % 2 === 0 ? 'FFFFFFFF' : 'FFF7F3FB' },
         };
         cell.border = {
-          bottom: { style: 'hair', color: { argb: 'FFDCE4E7' } },
+          bottom: { style: 'hair', color: { argb: 'FFE6DEEF' } },
         };
       });
     });
-    sheet.autoFilter = { from: 'A5', to: `B${Math.max(5, rows.length + 5)}` };
+    sheet.autoFilter = {
+      from: 'A5',
+      to: `${last}${Math.max(5, rows.length + 5)}`,
+    };
     sheet.pageSetup.printTitlesRow = '1:5';
-    sheet.pageSetup.printArea = `A1:B${Math.max(5, rows.length + 5)}`;
+    sheet.pageSetup.printArea = `A1:${last}${Math.max(5, rows.length + 5)}`;
     sheet.headerFooter.oddFooter = 'Leitor de Almoxarifado &R Página &P de &N';
     for (let row = 1; row <= 3; row++)
       sheet.getCell(`A${row}`).alignment = {
@@ -174,8 +200,8 @@ export function createCsv(
   return (
     '\uFEFF' +
     [
-      ['Código do Produto', 'Endereço'],
-      ...sortRecords(records, sort).map((r) => [r.code, r.address]),
+      exportColumns(records).headers,
+      ...sortRecords(records, sort).map(exportColumns(records).row),
     ]
       .map((row) => row.map(safe).join(';'))
       .join('\r\n')

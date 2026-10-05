@@ -296,7 +296,7 @@ test('multiple product prefixes work through Data Matrix, HID, manual entry and 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(filename);
   const sheet = workbook.getWorksheet('Todos os registros')!;
-  expect(sheet.columnCount).toBe(2);
+  expect(sheet.columnCount).toBe(3);
   expect(
     [6, 7, 8, 9, 10, 11].map((row) => [
       sheet.getCell(`A${row}`).value,
@@ -407,7 +407,7 @@ test('acceptance: Data Matrix images, browser restart, offline WASM and actual X
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(filename);
     const sheet = workbook.getWorksheet('Todos os registros')!;
-    expect(sheet.columnCount).toBe(2);
+    expect(sheet.columnCount).toBe(3);
     expect(
       [6, 7, 8].map((n) => [
         sheet.getCell(`A${n}`).value,

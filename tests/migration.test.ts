@@ -81,6 +81,7 @@ describe('upgrade from the published database v1', () => {
         count: 1,
         nextOrder: 2,
         activeAddress: 'R01A1C02DP01',
+        activeGalao: '',
         mode: 'product-address',
         pending: { type: 'product', value: 'ITABC02', source: 'hid' },
         completedAddresses: ['R01A1C01DP01'],
@@ -104,7 +105,7 @@ describe('upgrade from the published database v1', () => {
       const updated = new InventoryDatabase(name);
       try {
         await updated.open();
-        expect(updated.verno).toBe(5);
+        expect(updated.verno).toBe(6);
         expect(await updated.sessions.get(session.id)).toEqual(session);
         expect(await updated.records.get(record.id)).toEqual(record);
         const saved = (await updated.settings.get('main'))!;
@@ -149,7 +150,7 @@ describe('upgrade from the published database v1', () => {
     const updated = new InventoryDatabase(name);
     try {
       await updated.open();
-      expect(updated.verno).toBe(5);
+      expect(updated.verno).toBe(6);
       const saved = (await updated.settings.get('main'))!;
       expect(saved.rules.addressPatterns).toEqual(defaultSettings.rules.addressPatterns);
       expect(parseScan('R07A1GHBEG01', saved.rules)).toMatchObject({

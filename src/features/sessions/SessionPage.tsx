@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Download,
   MapPin,
+  Container,
   PencilLine,
   ScanLine,
   Undo2,
@@ -20,10 +21,17 @@ import {
   restoreRecords,
   updateSession,
 } from '../../core/database';
-import type { Session, Settings, Source } from '../../core/models';
+import type {
+  InventoryRecord,
+  Session,
+  Settings,
+  Source,
+} from '../../core/models';
 import {
   confirmDuplicate,
   processScan,
+  setActiveGalao,
+  setRecordDescription,
   type DuplicateCandidate,
   type ScanResult,
   type AddressChangeCandidate,
@@ -42,6 +50,7 @@ import { ManualDialog } from '../scanner/ManualDialog';
 import { ExportDialog } from '../export/ExportDialog';
 import { RecordsView } from '../records/RecordsView';
 import { feedback } from '../../services/feedback';
+import { discardFrame, readDescription } from '../../services/ocr';
 
 export function SessionPage({
   id,
@@ -66,7 +75,9 @@ export function SessionPage({
       null,
     ),
     [resolvingAddress, setResolvingAddress] = useState(false),
-    [resolvingDuplicate, setResolvingDuplicate] = useState(false);
+    [resolvingDuplicate, setResolvingDuplicate] = useState(false),
+    [readingText, setReadingText] = useState(''),
+    [editingGalao, setEditingGalao] = useState(false);
   const pendingDuplicate = useRef<DuplicateCandidate | null>(null),
     pendingAddress = useRef<AddressChangeCandidate | null>(null),
     addressLock = useRef(false),
@@ -88,17 +99,47 @@ export function SessionPage({
       setAddressChange(scan.addressChange);
     }
   }
-  async function receive(raw: string, source: Source) {
+  function describe(record: InventoryRecord, frame: HTMLCanvasElement) {
+    setReadingText(record.id);
+    void readDescription(frame, record.code)
+      .then(async (text) => {
+        if (!text) {
+          notice('Descritivo não identificado. Enquadre a etiqueta inteira.');
+          return;
+        }
+        await setRecordDescription(record.id, text);
+        setLast((current) =>
+          current?.record?.id === record.id
+            ? { ...current, record: { ...current.record, description: text } }
+            : current,
+        );
+      })
+      .catch(() => notice('Leitura do descritivo indisponível.', 'error'))
+      .finally(() =>
+        setReadingText((current) => (current === record.id ? '' : current)),
+      );
+  }
+  async function receive(
+    raw: string,
+    source: Source,
+    frame?: HTMLCanvasElement,
+  ) {
     scanQueue.current = scanQueue.current.then(async () => {
       if (pendingDuplicate.current || pendingAddress.current) {
+        discardFrame(frame);
         notice(
           'Leitura pausada: resolva a confirmação e leia a próxima etiqueta novamente.',
         );
         return;
       }
       try {
-        result(await processScan(id, raw, source, settings));
+        const scan = await processScan(id, raw, source, settings);
+        result(scan);
+        if (frame && scan.kind === 'product' && scan.record)
+          describe(scan.record, frame);
+        else discardFrame(frame);
       } catch (error) {
+        discardFrame(frame);
         notice(errorMessage(error), 'error');
       }
     });
@@ -224,7 +265,10 @@ export function SessionPage({
   const stats = statistics(records),
     currentCount = records.filter(
       (r) => r.address === session.activeAddress,
-    ).length;
+    ).length,
+    galaoCount = session.activeGalao
+      ? records.filter((r) => r.galao === session.activeGalao).length
+      : 0;
   const scanner = view !== 'records' && session.status !== 'archived';
   return (
     <main className="session-page page">
@@ -336,6 +380,77 @@ export function SessionPage({
                   </span>
                 )}
               </div>
+              <div className="galao-bar">
+                <span className="galao-label">
+                  <Container />
+                  Galão
+                </span>
+                {editingGalao ? (
+                  <form
+                    className="galao-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const value = new FormData(e.currentTarget).get('galao');
+                      void task(async () => {
+                        await setActiveGalao(id, String(value ?? ''));
+                        setEditingGalao(false);
+                      });
+                    }}
+                  >
+                    <input
+                      name="galao"
+                      aria-label="Galão atual"
+                      className="mono"
+                      autoFocus
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      maxLength={32}
+                      placeholder="Ex.: R16G01"
+                      defaultValue={session.activeGalao}
+                    />
+                    <button className="primary" aria-label="Salvar galão">
+                      <Check />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label="Cancelar galão"
+                      onClick={() => setEditingGalao(false)}
+                    >
+                      <X />
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <strong
+                      className={`galao-value mono ${session.activeGalao ? '' : 'empty'}`}
+                    >
+                      {session.activeGalao || 'Nenhum'}
+                    </strong>
+                    {session.activeGalao && (
+                      <span className="galao-count">{galaoCount} itens</span>
+                    )}
+                    <button
+                      className="text-button"
+                      disabled={blocked}
+                      onClick={() => setEditingGalao(true)}
+                    >
+                      {session.activeGalao ? 'Trocar' : 'Definir'}
+                    </button>
+                    {session.activeGalao && (
+                      <button
+                        className="icon-button"
+                        aria-label="Remover galão"
+                        disabled={blocked}
+                        onClick={() => void task(() => setActiveGalao(id, ''))}
+                      >
+                        <X />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
               <div className="mode-select">
                 <label htmlFor="session-mode">Modo de leitura</label>
                 <select
@@ -403,10 +518,27 @@ export function SessionPage({
                   {last?.value ? (
                     <code>{last.value}</code>
                   ) : (
-                    <p>Leia o endereço e, depois, os produtos desta posição.</p>
+                    <p>
+                      Leia o endereço, o galão (opcional) e depois os produtos.
+                    </p>
                   )}
                   {last?.record && (
-                    <span className="mono">{last.record.address}</span>
+                    <span className="mono">
+                      {last.record.address}
+                      {last.record.galao ? ` · ${last.record.galao}` : ''}
+                    </span>
+                  )}
+                  {last?.record?.description ? (
+                    <span className="feedback-description">
+                      {last.record.description}
+                    </span>
+                  ) : (
+                    readingText &&
+                    last?.record?.id === readingText && (
+                      <span className="feedback-description reading">
+                        Lendo descritivo…
+                      </span>
+                    )
                   )}
                 </div>
               </div>
@@ -467,7 +599,15 @@ export function SessionPage({
                           <Check />
                           <div>
                             <code>{record.code}</code>
-                            <span className="mono">{record.address}</span>
+                            <span className="mono">
+                              {record.address}
+                              {record.galao ? ` · ${record.galao}` : ''}
+                            </span>
+                            {record.description && (
+                              <span className="recent-description">
+                                {record.description}
+                              </span>
+                            )}
                           </div>
                           <span className="scan-order">
                             {record.order.toString().padStart(2, '0')}

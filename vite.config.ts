@@ -19,8 +19,8 @@ export default defineConfig({
         scope: './',
         display: 'standalone',
         orientation: 'any',
-        theme_color: '#17685b',
-        background_color: '#f5f7f6',
+        theme_color: '#3b1a5a',
+        background_color: '#ffffff',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           {
@@ -43,6 +43,19 @@ export default defineConfig({
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
+        // OCR engine and Portuguese model, fetched only when description
+        // reading is enabled, stay available offline after the first use.
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/(tesseract|@tesseract)/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ocr-assets',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

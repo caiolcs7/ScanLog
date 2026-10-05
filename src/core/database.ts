@@ -50,6 +50,22 @@ export class InventoryDatabase extends Dexie {
         const settings = await table.get('main');
         if (settings) await table.put(upgradeLegacySettings(settings));
       });
+    this.version(6)
+      .stores({})
+      .upgrade(async (transaction) => {
+        await transaction
+          .table<Settings, string>('settings')
+          .toCollection()
+          .modify((settings) => {
+            settings.readDescription ??= false;
+          });
+        await transaction
+          .table<Session, string>('sessions')
+          .toCollection()
+          .modify((session) => {
+            session.activeGalao ??= '';
+          });
+      });
   }
 }
 export const db = new InventoryDatabase();
@@ -72,6 +88,7 @@ export async function createSession(name: string, mode: Settings['mode']) {
     count: 0,
     nextOrder: 1,
     activeAddress: '',
+    activeGalao: '',
     mode,
     pending: null,
     completedAddresses: [],
