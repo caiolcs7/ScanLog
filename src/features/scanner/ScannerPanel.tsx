@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Camera,
+  Container,
   Flashlight,
   Pause,
   Play,
@@ -24,7 +25,9 @@ export function ScannerPanel({
   settings,
   blocked,
   onScan,
+  sameGalao,
 }: {
+  sameGalao?: { active: boolean; set: (value: boolean) => void };
   settings: Settings;
   blocked: boolean;
   onScan: (
@@ -195,17 +198,49 @@ export function ScannerPanel({
             </div>
           </div>
           {camera.running && settings.cameraCapture !== 'continuous' && (
+            <div className="capture-row">
+              <button
+                className="accent capture-button"
+                disabled={blocked}
+                onClick={() => {
+                  unlockAudio();
+                  if (camera.armed) service.cancelRead();
+                  else {
+                    sameGalao?.set(false);
+                    service.requestRead();
+                  }
+                }}
+              >
+                {camera.armed ? <X /> : <ScanLine />}
+                {camera.armed ? 'Cancelar leitura' : 'Ler código'}
+              </button>
+              {sameGalao && !camera.armed && (
+                <button
+                  className="same-galao-button"
+                  disabled={blocked}
+                  title="Ler e manter no mesmo galão"
+                  onClick={() => {
+                    unlockAudio();
+                    sameGalao.set(true);
+                    service.requestRead();
+                  }}
+                >
+                  <Container />
+                  Mesmo galão
+                </button>
+              )}
+            </div>
+          )}
+          {sameGalao && settings.cameraCapture === 'continuous' && (
             <button
-              className="accent capture-button"
-              disabled={blocked}
-              onClick={() => {
-                unlockAudio();
-                if (camera.armed) service.cancelRead();
-                else service.requestRead();
-              }}
+              className="same-galao-toggle"
+              aria-pressed={sameGalao.active}
+              onClick={() => sameGalao.set(!sameGalao.active)}
             >
-              {camera.armed ? <X /> : <ScanLine />}
-              {camera.armed ? 'Cancelar leitura' : 'Ler código'}
+              <Container />
+              {sameGalao.active
+                ? 'Mesmo galão ativo · toque para avançar'
+                : 'Manter próximas leituras no mesmo galão'}
             </button>
           )}
           <div className="camera-controls">
@@ -325,6 +360,18 @@ export function ScannerPanel({
             />
           </label>
           <p className="helper">USB, Bluetooth ou coletor em modo teclado.</p>
+          {sameGalao && (
+            <button
+              className="same-galao-toggle"
+              aria-pressed={sameGalao.active}
+              onClick={() => sameGalao.set(!sameGalao.active)}
+            >
+              <Container />
+              {sameGalao.active
+                ? 'Mesmo galão ativo · toque para avançar'
+                : 'Manter próximas leituras no mesmo galão'}
+            </button>
+          )}
           <button
             disabled={blocked || imageBusy}
             onClick={() => imageInput.current?.click()}

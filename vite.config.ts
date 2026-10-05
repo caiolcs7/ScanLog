@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.svg', 'icons/*.png'],
+      includeAssets: ['favicon.svg', 'logo.svg', 'icons/*.png'],
       manifest: {
         name: 'Leitor de Almoxarifado',
         short_name: 'Almoxarifado',
@@ -19,7 +19,7 @@ export default defineConfig({
         scope: './',
         display: 'standalone',
         orientation: 'any',
-        theme_color: '#3b1a5a',
+        theme_color: '#1f0036',
         background_color: '#ffffff',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },

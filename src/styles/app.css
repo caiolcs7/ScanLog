@@ -38,18 +38,38 @@
 @layer base {
   :root {
     /* Brand: white, dark purple (structure) and dark orange (action/focus). */
-    --surface: #f8f7fa;
+    --surface: #f7f5fa;
     --surface-elevated: #ffffff;
-    --surface-muted: #f1eef5;
-    --text-primary: #1e1430;
-    --text-secondary: #5f5770;
-    --border: #e4dfeb;
-    --primary: #3b1a5a;
-    --primary-hover: #2b1044;
-    --primary-soft: #efe9f6;
-    --accent: #c2410c;
-    --accent-hover: #9a3412;
-    --accent-soft: #fff1e8;
+    --surface-muted: #f0ebf6;
+    --text-primary: #1a0b2e;
+    --text-secondary: #5d5270;
+    --border: #e6dfef;
+    --primary: #4c007d;
+    --primary-hover: #3a0061;
+    --primary-soft: #f2e9fa;
+    --primary-deep: #1f0036;
+    --accent: #e8590c;
+    --accent-hover: #c94a06;
+    --accent-soft: #fff2e8;
+    --gold: #f5b65b;
+    --grad-primary: linear-gradient(
+      135deg,
+      #5a0a91 0%,
+      #4c007d 45%,
+      #2a0047 100%
+    );
+    --grad-accent: linear-gradient(
+      135deg,
+      #ff8a3d 0%,
+      #f26b1d 45%,
+      #d9480f 100%
+    );
+    --grad-header: linear-gradient(
+      100deg,
+      #1f0036 0%,
+      #34005a 55%,
+      #4c007d 100%
+    );
     --on-primary: #ffffff;
     --on-accent: #ffffff;
     --success: #1f7a4d;
@@ -69,7 +89,7 @@
     --space-8: 32px;
     --space-10: 40px;
     --space-12: 48px;
-    --shadow: 0 1px 2px #1e14300f, 0 8px 24px #1e143014;
+    --shadow: 0 1px 2px #1a0b2e14, 0 12px 32px -8px #4c007d33;
     --transition: 150ms ease-out;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color-scheme: light;
@@ -85,12 +105,32 @@
     --text-primary: #f3eff8;
     --text-secondary: #bcb2ca;
     --border: #372c47;
-    --primary: #c7a6ef;
-    --primary-hover: #d9c2f6;
-    --primary-soft: #2c2140;
-    --accent: #ff8a4c;
-    --accent-hover: #ffa676;
-    --accent-soft: #3a2218;
+    --primary: #c9a0f2;
+    --primary-hover: #dcc0f7;
+    --primary-soft: #2c1a44;
+    --primary-deep: #12001f;
+    --accent: #ff8a3d;
+    --accent-hover: #ffa366;
+    --accent-soft: #3a2014;
+    --gold: #f5b65b;
+    --grad-primary: linear-gradient(
+      135deg,
+      #3d0866 0%,
+      #2c0049 55%,
+      #1a002c 100%
+    );
+    --grad-accent: linear-gradient(
+      135deg,
+      #ff8a3d 0%,
+      #f26b1d 45%,
+      #d9480f 100%
+    );
+    --grad-header: linear-gradient(
+      100deg,
+      #0f001b 0%,
+      #1f0036 55%,
+      #34005a 100%
+    );
     --on-primary: #1e1430;
     --on-accent: #2a1206;
     --success: #7fd8a6;
@@ -160,23 +200,30 @@
     opacity: 0.5;
   }
   button.primary {
-    background: var(--primary);
+    background: var(--grad-primary);
+    box-shadow: 0 6px 16px -8px #4c007d99;
     color: white;
     border-color: transparent;
   }
   button.primary:hover:not(:disabled) {
-    background: var(--primary-hover);
+    background: var(--grad-primary);
+    filter: brightness(1.12);
   }
   [data-theme='dark'] button.primary {
     color: var(--on-primary);
   }
   button.accent {
-    background: var(--accent);
+    background: var(--grad-accent);
+    box-shadow:
+      0 8px 20px -10px #d9480fcc,
+      inset 0 1px 0 #ffffff40;
+    letter-spacing: 0.01em;
     color: var(--on-accent);
     border-color: transparent;
   }
   button.accent:hover:not(:disabled) {
-    background: var(--accent-hover);
+    background: var(--grad-accent);
+    filter: brightness(1.06);
   }
   button.danger {
     background: var(--danger);
@@ -318,8 +365,11 @@
     display: flex;
     align-items: center;
     gap: 54px;
-    border-bottom: 3px solid var(--accent);
-    background: #2a1142;
+    border-bottom: 0;
+    box-shadow:
+      inset 0 -2px 0 var(--accent),
+      0 6px 24px -10px #1f003680;
+    background: var(--grad-header);
     color: #ffffff;
   }
   .app-header .brand,
@@ -355,15 +405,17 @@
   .brand-mark {
     width: 43px;
     height: 43px;
-    background: var(--accent);
+    background: #ffffff;
     color: #ffffff;
+    padding: 4px;
+    box-shadow:
+      0 0 0 1px #ffffff33,
+      0 4px 14px -4px #00000066;
     display: grid;
     place-items: center;
     border-radius: 10px;
   }
-  [data-theme='dark'] .app-header {
-    background: #1a0d2b;
-  }
+
   .brand-mark svg {
     width: 28px;
     height: 28px;
@@ -724,16 +776,19 @@
   .active-address {
     grid-column: 2;
     grid-row: 1;
-    background: var(--primary);
+    background:
+      radial-gradient(120% 90% at 100% 0%, #ff8a3d22 0%, transparent 55%),
+      var(--grad-primary);
     border-radius: var(--radius);
-    border-left: 6px solid var(--accent);
+    border-left: 0;
+    box-shadow:
+      inset 4px 0 0 var(--accent),
+      var(--shadow);
     padding: 20px 24px;
     color: #ffffff;
     box-shadow: var(--shadow);
   }
-  [data-theme='dark'] .active-address {
-    background: #2a1a40;
-  }
+
   .active-address .address-heading > span,
   .active-address .address-detail,
   .active-address .mode-select label {
@@ -2630,5 +2685,50 @@
       transition: none !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+@layer components {
+  .brand-mark img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .capture-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .capture-row .capture-button {
+    flex: 1;
+    margin-top: 0;
+  }
+  .same-galao-button {
+    min-height: 52px;
+    font-size: 13px;
+    padding-inline: 12px;
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+    background: var(--primary-soft);
+  }
+  .same-galao-button svg,
+  .same-galao-toggle svg {
+    width: 18px;
+    height: 18px;
+  }
+  .same-galao-toggle {
+    width: 100%;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--primary);
+    background: var(--surface-elevated);
+  }
+  .same-galao-toggle[aria-pressed='true'] {
+    background: var(--grad-accent);
+    color: var(--on-accent);
+    border-color: transparent;
+  }
+  .page-heading h1 {
+    letter-spacing: -0.03em;
   }
 }

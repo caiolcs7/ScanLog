@@ -231,6 +231,12 @@ export function SettingsPage({ settings }: { settings: Settings }) {
               onChange={(value) => change('readDescription', value)}
             />
             <Toggle
+              title="Bombonas automáticas"
+              description="Cada código recebe o próximo galão da rua do endereço (R14G01, R14G02…). Use o botão Mesmo galão para guardar mais de um código na mesma bombona. Ao excluir, a numeração é refeita em sequência."
+              checked={form.autoGalao}
+              onChange={(value) => change('autoGalao', value)}
+            />
+            <Toggle
               title="Avisar sobre duplicados"
               description="Pergunta antes de adicionar o mesmo código no mesmo endereço. O bloqueio de frames repetidos da câmera permanece ativo."
               checked={form.duplicates}

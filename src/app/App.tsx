@@ -6,7 +6,6 @@ import {
   Boxes,
   ClipboardList,
   RefreshCw,
-  ScanLine,
   Settings2,
   ShieldCheck,
   Wifi,
@@ -144,7 +143,7 @@ function Application() {
           aria-label="Leitor de Almoxarifado — início"
         >
           <span className="brand-mark">
-            <ScanLine />
+            <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" />
           </span>
           <span>
             Leitor<span className="brand-sub">Almoxarifado</span>
