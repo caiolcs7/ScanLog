@@ -1,8 +1,10 @@
-# Leitor de Almoxarifado
+<p align="center"><img src="docs/marca/scanlog-logo.png" alt="ScanLog" width="420" /></p>
+
+# ScanLog
 
 PWA local para ler etiquetas Data Matrix, associar produtos a endereços e exportar relatórios Excel. Sem backend, login, serviços de análise ou envio de imagens.
 
-**Aplicativo publicado:** [Abrir Leitor de Almoxarifado](https://caiolcs7.github.io/leitor-almoxarifado/).
+**Aplicativo publicado:** [Abrir ScanLog](https://caiolcs7.github.io/ScanLog/).
 
 ## Instalar e executar
 

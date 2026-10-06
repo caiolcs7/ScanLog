@@ -9,10 +9,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.svg', 'logo.svg', 'icons/*.png'],
+      includeAssets: ['favicon.svg', 'logo.svg', 'wordmark.svg', 'icons/*.png'],
       manifest: {
-        name: 'Leitor de Almoxarifado',
-        short_name: 'Almoxarifado',
+        name: 'ScanLog',
+        short_name: 'ScanLog',
         description: 'Levantamento local de produtos e endereços.',
         lang: 'pt-BR',
         start_url: './',

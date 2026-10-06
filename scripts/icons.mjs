@@ -10,7 +10,7 @@ for (const [name, size] of [
   await sharp(svg).resize(size, size).png().toFile(`public/icons/${name}.png`);
 const padded = await sharp(svg).resize(320, 320).png().toBuffer();
 await sharp({
-  create: { width: 512, height: 512, channels: 4, background: '#17685b' },
+  create: { width: 512, height: 512, channels: 4, background: '#4c007d' },
 })
   .composite([{ input: padded, gravity: 'centre' }])
   .png()
