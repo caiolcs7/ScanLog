@@ -173,14 +173,16 @@ function Application() {
         <button
           className="brand"
           onClick={() => navigate('/')}
-          aria-label="Leitor de Almoxarifado — início"
+          aria-label="ScanLog — início"
         >
           <span className="brand-mark">
             <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" />
           </span>
-          <span>
-            Leitor<span className="brand-sub">Almoxarifado</span>
-          </span>
+          <img
+            className="brand-wordmark"
+            src={`${import.meta.env.BASE_URL}wordmark.svg`}
+            alt=""
+          />
         </button>
         <nav aria-label="Navegação principal">
           <button

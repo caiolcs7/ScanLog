@@ -1,5 +1,5 @@
 ---
-name: 'Leitor de Almoxarifado'
+name: 'ScanLog'
 description: 'Sistema visual operacional para leitura e associação de produtos a endereços.'
 colors:
   surface: '#f8f7fa'
@@ -196,7 +196,7 @@ components:
     width: 'min(520px, calc(100% - 32px))'
 ---
 
-# Design System: Leitor de Almoxarifado
+# Design System: ScanLog
 
 ## Overview
 

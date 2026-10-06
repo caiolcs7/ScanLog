@@ -1,4 +1,4 @@
-# Leitor de Almoxarifado
+# ScanLog
 
 <!-- impeccable:product-schema 1 -->
 
@@ -36,7 +36,7 @@ User supplied specification with examples ITPFPHM510ESAI4, ITPRCSEM03AI4, ITARSR
 
 ## Open Decisions
 
-Confirmed on 2026-09-14: products use varied prefixes, including IT, ITCP, MPC and STPC, and GS1 Data Matrix labels encode the product under AI 251 followed by AI 37. Location labels encode a site prefix followed by `R<rua>A<andar>C<coluna><lado>P<prateleira>`, for example `A1;R02A1C01EP02`. The default has no product-prefix whitelist; complete location shapes take precedence. Manual records also support the explicit values `SEM CODIGO` and `VAZIO`. No supplied product name; Leitor de Almoxarifado describes its function.
+Confirmed on 2026-09-14: products use varied prefixes, including IT, ITCP, MPC and STPC, and GS1 Data Matrix labels encode the product under AI 251 followed by AI 37. Location labels encode a site prefix followed by `R<rua>A<andar>C<coluna><lado>P<prateleira>`, for example `A1;R02A1C01EP02`. The default has no product-prefix whitelist; complete location shapes take precedence. Manual records also support the explicit values `SEM CODIGO` and `VAZIO`. Product name: ScanLog (renamed from Leitor de Almoxarifado on 2026-10-06).
 
 ## Product Principles
 

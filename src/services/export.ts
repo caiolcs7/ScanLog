@@ -51,7 +51,7 @@ export function createWorkbook(
   options: ExportOptions = defaultExport,
 ) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Leitor de Almoxarifado';
+  workbook.creator = 'ScanLog';
   workbook.created = new Date();
   const sorted = sortRecords(records, options.sort);
   const columns = exportColumns(records);
@@ -181,7 +181,7 @@ export function createWorkbook(
     };
     sheet.pageSetup.printTitlesRow = '1:5';
     sheet.pageSetup.printArea = `A1:${last}${Math.max(5, rows.length + 5)}`;
-    sheet.headerFooter.oddFooter = 'Leitor de Almoxarifado &R Página &P de &N';
+    sheet.headerFooter.oddFooter = 'ScanLog &R Página &P de &N';
     for (let row = 1; row <= 3; row++)
       sheet.getCell(`A${row}`).alignment = {
         vertical: 'middle',

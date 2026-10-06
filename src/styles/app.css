@@ -403,17 +403,15 @@
     background: transparent;
   }
   .brand-mark {
-    width: 56px;
-    height: 56px;
-    background: #ffffff;
-    color: #ffffff;
-    padding: 3px;
-    box-shadow:
-      0 0 0 1px #ffffff33,
-      0 4px 14px -4px #00000066;
+    width: 40px;
+    height: 40px;
     display: grid;
     place-items: center;
-    border-radius: 10px;
+  }
+  .brand-wordmark {
+    height: 30px;
+    width: auto;
+    display: block;
   }
 
   .brand-mark svg {
@@ -2069,9 +2067,11 @@
       gap: 9px;
     }
     .brand-mark {
-      width: 48px;
-      height: 48px;
-      border-radius: 8px;
+      width: 34px;
+      height: 34px;
+    }
+    .brand-wordmark {
+      height: 25px;
     }
     .brand-mark svg {
       width: 24px;
