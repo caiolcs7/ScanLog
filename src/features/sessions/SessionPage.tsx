@@ -5,7 +5,6 @@ import {
   Check,
   CheckCheck,
   ClipboardList,
-  Download,
   MapPin,
   Container,
   PencilLine,
@@ -31,6 +30,7 @@ import type {
 } from '../../core/models';
 import {
   confirmDuplicate,
+  nextBombonaNumber,
   processScan,
   setActiveGalao,
   setRecordDescription,
@@ -42,6 +42,7 @@ import { statistics } from '../../core/statistics';
 import { extractStreet } from '../../core/parser';
 import {
   errorMessage,
+  ExcelIcon,
   Loading,
   Modal,
   navigate,
@@ -86,11 +87,18 @@ export function SessionPage({
     addressLock = useRef(false),
     scanQueue = useRef(Promise.resolve()),
     duplicateLock = useRef(false),
-    sameGalaoRef = useRef(false);
-  const [sameGalao, setSameGalaoState] = useState(false);
+    sameGalaoRef = useRef(false),
+    galaoJumpRef = useRef(0);
+  const [sameGalao, setSameGalaoState] = useState(false),
+    [galaoJump, setGalaoJumpState] = useState(0);
+  function setGalaoJump(value: number) {
+    galaoJumpRef.current = value;
+    setGalaoJumpState(value);
+  }
   function setSameGalao(value: boolean) {
     sameGalaoRef.current = value;
     setSameGalaoState(value);
+    if (value) setGalaoJump(0);
   }
   const notice = useNotice(),
     task = useTask();
@@ -99,6 +107,7 @@ export function SessionPage({
   function result(scan: ScanResult) {
     setLast(scan);
     feedback(scan.kind, settings);
+    if (scan.record) setGalaoJump(0);
     if (scan.duplicate) {
       pendingDuplicate.current = scan.duplicate;
       setDuplicate(scan.duplicate);
@@ -144,6 +153,7 @@ export function SessionPage({
       try {
         const scan = await processScan(id, raw, source, settings, undefined, {
           sameGalao: settings.autoGalao && sameGalaoRef.current,
+          galaoJump: (settings.autoGalao && galaoJumpRef.current) || undefined,
         });
         result(scan);
         if (frame && scan.kind === 'product' && scan.record)
@@ -283,6 +293,7 @@ export function SessionPage({
           session.activeAddress,
           sameGalao,
           settings.galaoStart ?? 1,
+          galaoJump,
         )
       : null,
     galaoCount = session.activeGalao
@@ -305,10 +316,11 @@ export function SessionPage({
         </div>
         <div className="heading-actions">
           <button
+            className="btn-sheet"
             aria-label="Exportar levantamento"
             onClick={() => setExporting(true)}
           >
-            <Download />
+            <ExcelIcon />
             <span>Exportar</span>
           </button>
           <button
@@ -449,14 +461,39 @@ export function SessionPage({
                 <div className="galao-bar">
                   <span className="galao-label">
                     <Container />
-                    {sameGalao ? 'Mesmo galão' : 'Próximo galão'}
+                    {sameGalao
+                      ? 'Mesmo galão'
+                      : galaoJump
+                        ? 'Próximo galão (salto)'
+                        : 'Próximo galão'}
                   </span>
                   <strong
                     className={`galao-value mono ${bombona ? '' : 'empty'}`}
                   >
                     {bombona || 'Leia um endereço'}
                   </strong>
-                  <span className="galao-count">Automático por rua</span>
+                  <label className="galao-jump">
+                    Pular para G
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={999}
+                      className="mono"
+                      placeholder="—"
+                      value={galaoJump || ''}
+                      disabled={blocked}
+                      aria-label="Pular o próximo galão para o número"
+                      onChange={(e) => {
+                        const value = Math.min(
+                          999,
+                          Math.max(0, Math.trunc(Number(e.target.value)) || 0),
+                        );
+                        if (value) setSameGalao(false);
+                        setGalaoJump(value);
+                      }}
+                    />
+                  </label>
                 </div>
               ) : (
                 <div className="galao-bar">
@@ -812,12 +849,13 @@ export function SessionPage({
               Continuar editando
             </button>
             <button
+              className="btn-sheet"
               onClick={() => {
                 setFinishing(false);
                 setExporting(true);
               }}
             >
-              <Download />
+              <ExcelIcon />
               Exportar Excel
             </button>
             <button
@@ -846,6 +884,7 @@ function nextBombonaPreview(
   address: string,
   same: boolean,
   start: number,
+  jump: number,
 ) {
   const street = extractStreet(address);
   if (!address || street === 'Sem rua') return '';
@@ -856,8 +895,7 @@ function nextBombonaPreview(
   if (same && last?.galao) return last.galao;
   return bombonaLabel(
     street,
-    new Set(rows.map((r) => r.galaoGroup)).size + 1,
-    start,
+    nextBombonaNumber(rows, street, start, jump || undefined),
   );
 }
 function expected(session: Session) {

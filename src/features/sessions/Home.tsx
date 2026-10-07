@@ -6,7 +6,6 @@ import {
   ScanLine,
   MapPin,
   FileSpreadsheet,
-  MoreHorizontal,
   Copy,
   Archive,
   Trash2,
@@ -26,6 +25,8 @@ import {
 import type { Session, Settings } from '../../core/models';
 import {
   Confirm,
+  ExcelIcon,
+  MoreMenu,
   Modal,
   Loading,
   dateTime,
@@ -45,8 +46,7 @@ export function Home({ settings }: { settings: Settings }) {
     [exporting, setExporting] = useState<Session | null>(null),
     [deleting, setDeleting] = useState<Session | null>(null);
   const [filter, setFilter] = useState('recent'),
-    [search, setSearch] = useState(''),
-    [menu, setMenu] = useState('');
+    [search, setSearch] = useState('');
   const task = useTask();
   if (!sessions) return <Loading />;
   const filtered = sessions.filter(
@@ -177,11 +177,12 @@ export function Home({ settings }: { settings: Settings }) {
               </div>
               <div className="session-actions">
                 <button
-                  className="icon-button"
-                  aria-label={`Exportar ${session.name}`}
+                  className="btn-sheet"
+                  aria-label={`Exportar ${session.name} para planilha`}
+                  title="Exportar planilha"
                   onClick={() => setExporting(session)}
                 >
-                  <FileSpreadsheet />
+                  <ExcelIcon />
                 </button>
                 <button
                   onClick={() =>
@@ -193,69 +194,50 @@ export function Home({ settings }: { settings: Settings }) {
                   {session.status === 'archived' ? 'Consultar' : 'Continuar'}
                   <ArrowRight />
                 </button>
-                <button
-                  className="icon-button"
-                  aria-label={`Opções de ${session.name}`}
-                  aria-expanded={menu === session.id}
-                  onClick={() => setMenu(menu === session.id ? '' : session.id)}
-                >
-                  <MoreHorizontal />
-                </button>
+                <MoreMenu
+                  label={`Opções de ${session.name}`}
+                  items={[
+                    {
+                      label: 'Nome e observações',
+                      icon: <Pencil />,
+                      onSelect: () => setEditing(session),
+                    },
+                    {
+                      label: 'Duplicar',
+                      icon: <Copy />,
+                      onSelect: () =>
+                        void task(() => duplicateSession(session.id)),
+                    },
+                    {
+                      label:
+                        session.status === 'archived'
+                          ? 'Desarquivar'
+                          : 'Arquivar',
+                      icon:
+                        session.status === 'archived' ? (
+                          <RotateCcw />
+                        ) : (
+                          <Archive />
+                        ),
+                      onSelect: () =>
+                        void task(() =>
+                          updateSession(session.id, {
+                            status:
+                              session.status === 'archived'
+                                ? 'active'
+                                : 'archived',
+                          }),
+                        ),
+                    },
+                    {
+                      label: 'Excluir',
+                      icon: <Trash2 />,
+                      danger: true,
+                      onSelect: () => setDeleting(session),
+                    },
+                  ]}
+                />
               </div>
-              {menu === session.id && (
-                <div className="session-options">
-                  <button
-                    onClick={() => {
-                      setEditing(session);
-                      setMenu('');
-                    }}
-                  >
-                    <Pencil />
-                    Nome e observações
-                  </button>
-                  <button
-                    onClick={() =>
-                      void task(async () => {
-                        await duplicateSession(session.id);
-                        setMenu('');
-                      })
-                    }
-                  >
-                    <Copy />
-                    Duplicar
-                  </button>
-                  <button
-                    onClick={() =>
-                      void task(async () => {
-                        await updateSession(session.id, {
-                          status:
-                            session.status === 'archived'
-                              ? 'active'
-                              : 'archived',
-                        });
-                        setMenu('');
-                      })
-                    }
-                  >
-                    {session.status === 'archived' ? (
-                      <RotateCcw />
-                    ) : (
-                      <Archive />
-                    )}
-                    {session.status === 'archived' ? 'Desarquivar' : 'Arquivar'}
-                  </button>
-                  <button
-                    className="text-danger"
-                    onClick={() => {
-                      setDeleting(session);
-                      setMenu('');
-                    }}
-                  >
-                    <Trash2 />
-                    Excluir
-                  </button>
-                </div>
-              )}
             </article>
           ))}
         </div>

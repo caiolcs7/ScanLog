@@ -232,7 +232,7 @@ export function SettingsPage({ settings }: { settings: Settings }) {
             />
             <Toggle
               title="Bombonas automáticas"
-              description="Cada código recebe o próximo galão da rua do endereço (R14G01, R14G02…). Use o botão Mesmo galão para guardar mais de um código na mesma bombona. Ao excluir, a numeração é refeita em sequência."
+              description="Cada código recebe o próximo galão da rua do endereço (R14G01, R14G02…). Use Mesmo galão para guardar mais de um código na mesma bombona e Pular para G para saltar a numeração (G05 → G20). Ao excluir, a numeração é refeita em sequência."
               checked={form.autoGalao}
               onChange={(value) => change('autoGalao', value)}
             />

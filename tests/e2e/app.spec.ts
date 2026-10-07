@@ -531,12 +531,12 @@ test('HID, duplicate controls, paired order, batch edits, session actions and ba
   await page
     .getByRole('button', { name: 'Opções de Teste R01', exact: true })
     .click();
-  await page.getByRole('button', { name: 'Duplicar', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Duplicar', exact: true }).click();
   await expect(page.locator('.session-row')).toHaveCount(3);
   await page
     .getByRole('button', { name: 'Opções de Teste R01', exact: true })
     .click();
-  await page.getByRole('button', { name: 'Nome e observações' }).click();
+  await page.getByRole('menuitem', { name: 'Nome e observações' }).click();
   await page.getByLabel('Nome do levantamento').fill('Inventário conferido');
   await page.getByRole('button', { name: 'Salvar alterações' }).click();
   await expect(
@@ -545,7 +545,7 @@ test('HID, duplicate controls, paired order, batch edits, session actions and ba
   await page
     .getByRole('button', { name: 'Opções de Inventário conferido' })
     .click();
-  await page.getByRole('button', { name: 'Arquivar', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Arquivar', exact: true }).click();
   await expect(page.locator('.session-row')).toHaveCount(2);
   await page.getByRole('button', { name: 'Arquivados', exact: true }).click();
   await expect(page.locator('.session-row')).toHaveCount(1);
