@@ -199,31 +199,39 @@ export async function clearAllData() {
     },
   );
 }
-export function bombonaLabel(street: string, index: number, start = 1) {
-  return `${street}G${String(index + start - 1).padStart(2, '0')}`;
+export function bombonaLabel(street: string, n: number) {
+  return `${street}G${String(n).padStart(2, '0')}`;
 }
 /**
  * Automatic bombonas are numbered per street in reading order (R14G01,
- * R14G02…). Removing or moving records keeps each street contiguous.
+ * R14G02…). A bombona whose first record has `galaoJump` starts a new run
+ * from that number (G05 → G20, G21…). Removing records keeps runs contiguous.
  */
+export function bombonaNumbers(rows: InventoryRecord[], start = 1) {
+  const groups = new Map<string, number>(),
+    last = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.galaoGroup || groups.has(row.galaoGroup)) continue;
+    const street = extractStreet(row.address),
+      n = Math.max(row.galaoJump ?? 0, (last.get(street) ?? start - 1) + 1);
+    groups.set(row.galaoGroup, n);
+    last.set(street, n);
+  }
+  return { groups, last };
+}
 export async function renumberBombonas(sessionId: string) {
   const start = (await db.settings.get('main'))?.galaoStart ?? 1;
   const rows = await db.records
     .where('sessionId')
     .equals(sessionId)
     .sortBy('order');
-  const groups = new Map<string, Map<string, string>>();
+  const { groups } = bombonaNumbers(rows, start);
   for (const row of rows) {
     if (!row.galaoGroup) continue;
-    const street = extractStreet(row.address);
-    const streetGroups = groups.get(street) ?? new Map<string, string>();
-    groups.set(street, streetGroups);
-    if (!streetGroups.has(row.galaoGroup))
-      streetGroups.set(
-        row.galaoGroup,
-        bombonaLabel(street, streetGroups.size + 1, start),
-      );
-    const galao = streetGroups.get(row.galaoGroup)!;
+    const galao = bombonaLabel(
+      extractStreet(row.address),
+      groups.get(row.galaoGroup)!,
+    );
     if (row.galao !== galao) await db.records.update(row.id, { galao });
   }
 }

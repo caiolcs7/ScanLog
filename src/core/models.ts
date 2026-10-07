@@ -101,6 +101,8 @@ export const recordSchema = z.object({
   rawScan: z.string().max(2048).optional(),
   galao: z.string().max(32).optional(),
   galaoGroup: z.string().max(64).optional(),
+  /** Automatic bombonas: this bombona jumps to this number (G05 → G20). */
+  galaoJump: z.number().int().min(1).max(999).optional(),
   description: z.string().max(300).optional(),
 });
 export type InventoryRecord = z.infer<typeof recordSchema>;

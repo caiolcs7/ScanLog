@@ -198,3 +198,93 @@ export function dateTime(timestamp: number) {
 export function navigate(path: string) {
   window.location.hash = path;
 }
+export function ExcelIcon() {
+  return (
+    <svg viewBox="0 0 50 50" fill="currentColor" aria-hidden="true">
+      <path d="M28.81.03.81 5.34C.34 5.43 0 5.86 0 6.34v37.32c0 .48.34.91.81 1L28.81 49.97c.06.01.13.03.19.03.23 0 .45-.07.63-.22.23-.19.37-.48.37-.78V1c0-.3-.14-.59-.37-.78a1.03 1.03 0 0 0-.82-.19ZM32 6v7h2v2h-2v5h2v2h-2v5h2v2h-2v6h2v2h-2v7h15a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Zm4 7h8v2h-8ZM6.69 15.69h5.12l2.69 5.59c.21.44.4.98.56 1.6h.03c.11-.37.31-.94.6-1.66l2.97-5.53h4.69l-5.6 9.25 5.75 9.44h-4.97l-3.25-6.1c-.12-.22-.25-.64-.38-1.25h-.03c-.06.29-.21.73-.44 1.31l-3.25 6.04h-5l5.97-9.34ZM36 20h8v2h-8Zm0 7h8v2h-8Zm0 8h8v2h-8Z" />
+    </svg>
+  );
+}
+export type MenuItem = {
+  label: string;
+  icon: ReactNode;
+  onSelect: () => void;
+  danger?: boolean;
+};
+/** Compact actions menu: animated hamburger button + popover list. */
+export function MoreMenu({
+  label,
+  items,
+}: {
+  label: string;
+  items: MenuItem[];
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const entries = () => [
+      ...(root.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitem"]',
+      ) ?? []),
+    ];
+    const outside = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const keys = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        root.current?.querySelector<HTMLButtonElement>('.more-button')?.focus();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const list = entries(),
+          i = list.indexOf(document.activeElement as HTMLButtonElement),
+          step = e.key === 'ArrowDown' ? 1 : -1;
+        list.at((i + step) % list.length)?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', keys);
+    entries()[0]?.focus({ preventScroll: true });
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', keys);
+    };
+  }, [open]);
+  return (
+    <div ref={root} className={`more-menu${open ? ' active' : ''}`}>
+      <button
+        type="button"
+        className="more-button"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="menu-icon" aria-hidden="true">
+          <span className="menu-icon-line half first" />
+          <span className="menu-icon-line" />
+          <span className="menu-icon-line half last" />
+        </span>
+      </button>
+      <div className="more-button-list" role="menu" aria-label={label}>
+        {items.map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            role="menuitem"
+            tabIndex={open ? 0 : -1}
+            className={`more-button-list-item${item.danger ? ' danger' : ''}`}
+            onClick={() => {
+              setOpen(false);
+              item.onSelect();
+            }}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -91,4 +91,33 @@ describe('automatic bombonas', () => {
     await removeRecords(s.id, [first.id]);
     expect(await rows(s.id)).toEqual([['ITA002', 'R15G05']]);
   });
+  it('jumps the numbering (G05 → G20) and keeps the jump after deletes', async () => {
+    const s = await createSession('Salto', 'fixed');
+    const start = { ...settings, galaoStart: 5 };
+    await db.settings.update('main', { galaoStart: 5 });
+    await processScan(s.id, 'R15A1C05EP01', 'hid', start);
+    await processScan(s.id, 'ITA001', 'hid', start);
+    await processScan(s.id, 'ITA002', 'hid', start, undefined, {
+      galaoJump: 20,
+    });
+    await processScan(s.id, 'ITA003', 'hid', start, undefined, {
+      sameGalao: true,
+    });
+    await processScan(s.id, 'ITA004', 'hid', start);
+    expect(await rows(s.id)).toEqual([
+      ['ITA001', 'R15G05'],
+      ['ITA002', 'R15G20'],
+      ['ITA003', 'R15G20'],
+      ['ITA004', 'R15G21'],
+    ]);
+    const first = (await db.records.toArray()).find(
+      (r) => r.code === 'ITA001',
+    )!;
+    await removeRecords(s.id, [first.id]);
+    expect(await rows(s.id)).toEqual([
+      ['ITA002', 'R15G20'],
+      ['ITA003', 'R15G20'],
+      ['ITA004', 'R15G21'],
+    ]);
+  });
 });

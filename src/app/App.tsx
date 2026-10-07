@@ -1,16 +1,7 @@
 import { Component, useEffect, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import {
-  ArrowDownToLine,
-  Boxes,
-  ClipboardList,
-  RefreshCw,
-  Settings2,
-  ShieldCheck,
-  Wifi,
-  WifiOff,
-} from 'lucide-react';
+import { Boxes, ClipboardList, RefreshCw, ShieldCheck } from 'lucide-react';
 import { db, initializeDatabase } from '../core/database';
 import { activateWaitingUpdate } from '../services/pwa';
 import { Home } from '../features/sessions/Home';
@@ -18,17 +9,12 @@ import { SessionPage } from '../features/sessions/SessionPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import {
   Loading,
-  Modal,
   NoticeProvider,
   errorMessage,
   navigate,
   useNotice,
   useTask,
 } from '../components/ui';
-type InstallEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: string }>;
-};
 export function App() {
   return (
     <ErrorBoundary>
@@ -43,8 +29,6 @@ function Application() {
     [error, setError] = useState(''),
     [route, setRoute] = useState(window.location.hash.slice(1) || '/'),
     [online, setOnline] = useState(navigator.onLine),
-    [install, setInstall] = useState<InstallEvent | null>(null),
-    [installHelp, setInstallHelp] = useState(false),
     [swError, setSwError] = useState(false),
     [cached, setCached] = useState(false),
     [updating, setUpdating] = useState(false);
@@ -119,22 +103,13 @@ function Application() {
       window.scrollTo(0, 0);
     };
     const network = () => setOnline(navigator.onLine);
-    const installer = (event: Event) => {
-      event.preventDefault();
-      setInstall(event as InstallEvent);
-    };
-    const installed = () => setInstall(null);
     window.addEventListener('hashchange', routeChange);
     window.addEventListener('online', network);
     window.addEventListener('offline', network);
-    window.addEventListener('beforeinstallprompt', installer);
-    window.addEventListener('appinstalled', installed);
     return () => {
       window.removeEventListener('hashchange', routeChange);
       window.removeEventListener('online', network);
       window.removeEventListener('offline', network);
-      window.removeEventListener('beforeinstallprompt', installer);
-      window.removeEventListener('appinstalled', installed);
     };
   }, []);
   useEffect(() => {
@@ -187,43 +162,34 @@ function Application() {
         <nav aria-label="Navegação principal">
           <button
             aria-label="Levantamentos"
-            className={route !== '/settings' ? 'nav-active' : ''}
+            aria-current={route !== '/settings' ? 'page' : undefined}
+            className={`nav-survey ${route !== '/settings' ? 'nav-active' : ''}`}
             onClick={() => navigate('/')}
           >
-            <ClipboardList />
-            <span>Levantamentos</span>
+            <span className="nav-survey__text">Levantamentos</span>
+            <span className="nav-survey__orb" aria-hidden="true">
+              <ClipboardList />
+            </span>
           </button>
           <button
             aria-label="Configurações"
-            className={route === '/settings' ? 'nav-active' : ''}
+            aria-current={route === '/settings' ? 'page' : undefined}
+            className={`nav-settings ${route === '/settings' ? 'nav-active' : ''}`}
             onClick={() => navigate('/settings')}
           >
-            <Settings2 />
-            <span>Configurações</span>
+            <span className="nav-settings__content">
+              <svg
+                className="nav-settings__icon"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M12 2L9.09 5H4v4.09L1 12l3 2.91V19h5.09L12 22l2.91-3H20v-5.09L23 12l-3-2.91V5h-5.09L12 2zm0 4.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11zm0 2a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" />
+              </svg>
+              <span className="nav-settings__text">Configurações</span>
+            </span>
           </button>
         </nav>
-        <div className="header-status">
-          <span className={online ? 'connection' : 'connection offline'}>
-            {online ? <Wifi /> : <WifiOff />}
-            {online ? 'Online' : 'Offline'}
-          </span>
-          <button
-            className="install-button"
-            aria-label="Instalar aplicativo"
-            onClick={() => {
-              if (install)
-                void task(async () => {
-                  await install.prompt();
-                  const choice = await install.userChoice;
-                  if (choice.outcome === 'accepted') setInstall(null);
-                });
-              else setInstallHelp(true);
-            }}
-          >
-            <ArrowDownToLine />
-            <span>Instalar app</span>
-          </button>
-        </div>
       </header>
       {needRefresh && (
         <div className="update-banner">
@@ -280,29 +246,6 @@ function Application() {
               : 'Sem conexão'}
         </span>
       </div>
-      {installHelp && (
-        <Modal
-          title="Instalar no dispositivo"
-          onClose={() => setInstallHelp(false)}
-        >
-          <p>
-            No Chrome ou Edge, abra o menu do navegador e escolha{' '}
-            <strong>Instalar aplicativo</strong> ou{' '}
-            <strong>Adicionar à tela inicial</strong>.
-          </p>
-          <p>
-            No iPhone, abra no Safari, toque em <strong>Compartilhar</strong> e
-            depois em <strong>Adicionar à Tela de Início</strong>.
-          </p>
-          <p className="helper">
-            A instalação fica disponível após publicar em HTTPS. Espere o aviso
-            “Pronto para uso offline” antes de sair sem conexão.
-          </p>
-          <button className="primary" onClick={() => setInstallHelp(false)}>
-            Entendi
-          </button>
-        </Modal>
-      )}
     </div>
   );
 }

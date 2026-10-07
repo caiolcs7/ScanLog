@@ -1,4 +1,4 @@
-import { bombonaLabel, db, renumberBombonas } from './database';
+import { bombonaLabel, bombonaNumbers, db, renumberBombonas } from './database';
 import type { InventoryRecord, Session, Settings, Source } from './models';
 import { extractStreet, normalizeGalao, parseGalao, parseScan } from './parser';
 
@@ -11,6 +11,8 @@ export type DuplicateCandidate = {
   paired: boolean;
   /** Automatic bombonas: keep the previous record's bombona. */
   sameGalao?: boolean;
+  /** Automatic bombonas: the next bombona jumps to this number. */
+  galaoJump?: number;
 };
 export type ScanResult = {
   kind:
@@ -97,6 +99,7 @@ export async function appendRecord(
         candidate.address,
         !!candidate.sameGalao,
         settings.galaoStart ?? 1,
+        candidate.galaoJump,
       )
     : null;
   const galao = bombona?.galao ?? session.activeGalao;
@@ -110,6 +113,7 @@ export async function appendRecord(
     source: candidate.source,
     ...(galao ? { galao } : {}),
     ...(bombona ? { galaoGroup: bombona.group } : {}),
+    ...(bombona?.jump ? { galaoJump: bombona.jump } : {}),
     ...(settings.saveRaw && candidate.raw ? { rawScan: candidate.raw } : {}),
   };
   await db.records.add(record);
@@ -153,7 +157,7 @@ export async function processScan(
   source: Source,
   settings: Settings,
   approvedChange?: AddressChangeCandidate,
-  options: { sameGalao?: boolean } = {},
+  options: { sameGalao?: boolean; galaoJump?: number } = {},
 ): Promise<ScanResult> {
   return db.transaction('rw', db.sessions, db.records, db.history, async () => {
     const session = await db.sessions.get(sessionId);
@@ -249,6 +253,7 @@ export async function processScan(
             sessionId,
             paired: session.mode !== 'fixed',
             sameGalao: options.sameGalao,
+            galaoJump: options.galaoJump,
           },
           settings,
         );
@@ -368,6 +373,7 @@ export async function nextBombona(
   address: string,
   same: boolean,
   start = 1,
+  jump?: number,
 ) {
   const street = extractStreet(address);
   if (street === 'Sem rua') return null;
@@ -376,13 +382,21 @@ export async function nextBombona(
   ).filter((r) => r.galaoGroup && extractStreet(r.address) === street);
   const last = rows.at(-1);
   if (same && last?.galaoGroup && last.galao)
-    return { galao: last.galao, group: last.galaoGroup };
+    return { galao: last.galao, group: last.galaoGroup, jump: undefined };
+  const n = nextBombonaNumber(rows, street, start, jump);
   return {
-    galao: bombonaLabel(
-      street,
-      new Set(rows.map((r) => r.galaoGroup)).size + 1,
-      start,
-    ),
+    galao: bombonaLabel(street, n),
     group: crypto.randomUUID(),
+    jump: jump === n ? jump : undefined,
   };
+}
+/** Number of the next new bombona of a street, honoring a requested jump. */
+export function nextBombonaNumber(
+  rows: InventoryRecord[],
+  street: string,
+  start = 1,
+  jump?: number,
+) {
+  const next = (bombonaNumbers(rows, start).last.get(street) ?? start - 1) + 1;
+  return Math.max(jump ?? 0, next);
 }
