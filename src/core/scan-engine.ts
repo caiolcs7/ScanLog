@@ -1,6 +1,7 @@
 import { bombonaLabel, bombonaNumbers, db, renumberBombonas } from './database';
 import type { InventoryRecord, Session, Settings, Source } from './models';
 import { extractStreet, normalizeGalao, parseGalao, parseScan } from './parser';
+import { catalogWeight } from './weight';
 
 export type DuplicateCandidate = {
   code: string;
@@ -103,6 +104,7 @@ export async function appendRecord(
       )
     : null;
   const galao = bombona?.galao ?? session.activeGalao;
+  const weight = session.weighted ? catalogWeight(candidate.code) : undefined;
   const record: InventoryRecord = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -115,6 +117,7 @@ export async function appendRecord(
     ...(bombona ? { galaoGroup: bombona.group } : {}),
     ...(bombona?.jump ? { galaoJump: bombona.jump } : {}),
     ...(settings.saveRaw && candidate.raw ? { rawScan: candidate.raw } : {}),
+    ...(weight ? { weight } : {}),
   };
   await db.records.add(record);
   await db.sessions.update(session.id, {

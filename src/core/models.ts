@@ -88,6 +88,8 @@ export const sessionSchema = z.object({
     })
     .nullable(),
   completedAddresses: z.array(code).max(100000),
+  /** Levantamento com peso: cada produto pode ter peso em gramas. */
+  weighted: z.boolean().default(false),
 });
 export type Session = z.infer<typeof sessionSchema>;
 export const recordSchema = z.object({
@@ -104,6 +106,8 @@ export const recordSchema = z.object({
   /** Automatic bombonas: this bombona jumps to this number (G05 → G20). */
   galaoJump: z.number().int().min(1).max(999).optional(),
   description: z.string().max(300).optional(),
+  /** Peso unitário em gramas (aceita valores abaixo de 1 g). */
+  weight: z.number().positive().max(1e9).optional(),
 });
 export type InventoryRecord = z.infer<typeof recordSchema>;
 export const historySchema = z.object({

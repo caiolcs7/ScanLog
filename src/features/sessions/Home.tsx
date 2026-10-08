@@ -14,6 +14,7 @@ import {
   Search,
   CheckCircle2,
   RotateCcw,
+  Scale,
 } from 'lucide-react';
 import {
   createSession,
@@ -53,7 +54,8 @@ export function Home({ settings }: { settings: Settings }) {
     (s) =>
       (filter === 'archived'
         ? s.status === 'archived'
-        : s.status !== 'archived') &&
+        : s.status !== 'archived' &&
+          !!s.weighted === (filter === 'weighted')) &&
       s.name
         .toLocaleLowerCase('pt-BR')
         .includes(search.toLocaleLowerCase('pt-BR')),
@@ -78,7 +80,23 @@ export function Home({ settings }: { settings: Settings }) {
           >
             Recentes{' '}
             <span>
-              {sessions.filter((s) => s.status !== 'archived').length}
+              {
+                sessions.filter((s) => s.status !== 'archived' && !s.weighted)
+                  .length
+              }
+            </span>
+          </button>
+          <button
+            className={filter === 'weighted' ? 'selected' : ''}
+            onClick={() => setFilter('weighted')}
+          >
+            <Scale className="tab-icon" />
+            Com peso{' '}
+            <span>
+              {
+                sessions.filter((s) => s.status !== 'archived' && s.weighted)
+                  .length
+              }
             </span>
           </button>
           <button
@@ -163,6 +181,12 @@ export function Home({ settings }: { settings: Settings }) {
                 <div className="session-meta">
                   <span>{session.count} registros</span>
                   <span>Atualizado {dateTime(session.updatedAt)}</span>
+                  {session.weighted && (
+                    <span className="status weighted">
+                      <Scale />
+                      Com peso
+                    </span>
+                  )}
                   <span className={`status ${session.status}`}>
                     {session.status === 'active'
                       ? 'Em andamento'
@@ -251,6 +275,7 @@ export function Home({ settings }: { settings: Settings }) {
         <SessionForm
           session={editing}
           settings={settings}
+          weighted={filter === 'weighted'}
           onClose={() => {
             setCreate(false);
             setEditing(null);
@@ -278,19 +303,28 @@ export function Home({ settings }: { settings: Settings }) {
 function SessionForm({
   session,
   settings,
+  weighted: initialWeighted,
   onClose,
 }: {
   session: Session | null;
   settings: Settings;
+  weighted: boolean;
   onClose: () => void;
 }) {
   const [name, setName] = useState(session?.name ?? ''),
     [notes, setNotes] = useState(session?.notes ?? ''),
+    [weighted, setWeighted] = useState(initialWeighted),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   return (
     <Modal
-      title={session ? 'Nome e observações' : 'Novo levantamento'}
+      title={
+        session
+          ? 'Nome e observações'
+          : weighted
+            ? 'Novo levantamento com peso'
+            : 'Novo levantamento'
+      }
       onClose={onClose}
     >
       <form
@@ -301,7 +335,11 @@ function SessionForm({
             if (session)
               await updateSession(session.id, { name: name.trim(), notes });
             else {
-              const created = await createSession(name, settings.mode);
+              const created = await createSession(
+                name,
+                settings.mode,
+                weighted,
+              );
               if (notes) await updateSession(created.id, { notes });
               navigate(`/session/${created.id}/scanner`);
             }
@@ -333,6 +371,20 @@ function SessionForm({
             onChange={(e) => setNotes(e.target.value)}
           />
         </label>
+        {!session && (
+          <label className="weight-toggle">
+            <input
+              type="checkbox"
+              checked={weighted}
+              onChange={(e) => setWeighted(e.target.checked)}
+            />
+            <Scale />
+            <span>
+              Levantamento com peso
+              <small>Peso em gramas por código; exportado em kg.</small>
+            </span>
+          </label>
+        )}
         {error && (
           <p role="alert" className="form-error">
             {error}
