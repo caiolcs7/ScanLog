@@ -7,6 +7,7 @@ import { activateWaitingUpdate } from '../services/pwa';
 import { Home } from '../features/sessions/Home';
 import { SessionPage } from '../features/sessions/SessionPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
+import { BrandLogo } from '../components/BrandLogo';
 import {
   Loading,
   NoticeProvider,
@@ -150,14 +151,7 @@ function Application() {
           onClick={() => navigate('/')}
           aria-label="ScanLog — início"
         >
-          <span className="brand-mark">
-            <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" />
-          </span>
-          <img
-            className="brand-wordmark"
-            src={`${import.meta.env.BASE_URL}wordmark.svg`}
-            alt=""
-          />
+          <BrandLogo />
         </button>
         <nav aria-label="Navegação principal">
           <button

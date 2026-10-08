@@ -166,7 +166,7 @@ test('button capture, actual reticle crop, continuous option, cancellation and o
   await expect(page.locator('.session-heading p')).toContainText('2 registros');
   await page.waitForTimeout(1200);
   await expect(
-    page.getByRole('button', { name: 'Adicionar novamente' }),
+    page.getByRole('button', { name: 'Adicionar mesmo assim' }),
   ).toHaveCount(0);
   for (const [width, height] of [
     [390, 844],
@@ -475,12 +475,12 @@ test('HID, duplicate controls, paired order, batch edits, session actions and ba
   await expect(page.locator('.session-heading p')).toContainText('1 registros');
   await hid(page, 'ITPFPHM510ESAI4');
   await expect(
-    page.getByRole('button', { name: 'Adicionar novamente' }),
+    page.getByRole('button', { name: 'Adicionar mesmo assim' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Ignorar', exact: true }).click();
   await expect(page.locator('.session-heading p')).toContainText('1 registros');
   await hid(page, 'ITPFPHM510ESAI4');
-  await page.getByRole('button', { name: 'Adicionar novamente' }).click();
+  await page.getByRole('button', { name: 'Adicionar mesmo assim' }).click();
   await expect(page.locator('.session-heading p')).toContainText('2 registros');
   await page
     .getByLabel('Modo de leitura', { exact: true })
@@ -582,7 +582,7 @@ test('synthetic camera decodes Data Matrix once while continuously visible and r
       '1 registros',
     );
     await expect(
-      page.getByRole('button', { name: 'Adicionar novamente' }),
+      page.getByRole('button', { name: 'Adicionar mesmo assim' }),
     ).toHaveCount(0);
     const track = await page.evaluateHandle(
       () =>
@@ -760,9 +760,9 @@ test('rapid HID readings are queued and repeated confirmation cannot create extr
   await expect(page.locator('.session-heading p')).toContainText('3 registros');
   await page.setViewportSize({ width: 390, height: 844 });
   await hid(page, 'ITARSRM003AI4');
-  const choice = page.getByRole('button', { name: 'Adicionar novamente' });
+  const choice = page.getByRole('button', { name: 'Adicionar mesmo assim' });
   await expect(choice).toBeVisible();
-  const decision = await page.locator('.duplicate-warning').boundingBox();
+  const decision = await page.locator('dialog[open]').boundingBox();
   expect(decision!.y + decision!.height).toBeLessThan(844);
   await page.screenshot({
     path: '.impeccable/review/duplicate-mobile.png',
@@ -818,4 +818,34 @@ test('a waiting PWA update requires a click and preserves the active session', a
   } finally {
     await writeFile(workerPath, original);
   }
+});
+
+test('weighted survey prefills catalog weights and asks for unknown ones', async ({
+  page,
+}) => {
+  await page.goto(base);
+  await page.getByRole('button', { name: /Com peso/ }).click();
+  await page
+    .getByRole('button', { name: 'Novo levantamento', exact: true })
+    .first()
+    .click();
+  await page.getByLabel('Nome do levantamento').fill('Peso R01');
+  await expect(page.getByLabel(/Levantamento com peso/)).toBeChecked();
+  await page.getByRole('button', { name: 'Criar levantamento' }).click();
+  await hid(page, 'R01A1C03DP02');
+  await hid(page, 'ITARLSM003BC');
+  await expect(page.locator('.feedback-weight')).toContainText('0,12 g');
+  await hid(page, 'ITSEMPESO01');
+  const dialog = page.getByRole('dialog', { name: 'Peso do produto' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Peso unitário').fill('0,24');
+  await expect(dialog).toContainText('0,00024 kg');
+  await dialog.getByRole('button', { name: 'Salvar peso' }).click();
+  await expect(page.locator('.feedback-weight')).toContainText('0,24 g');
+  await hid(page, 'ITSEMPESO01');
+  const repeat = page.getByRole('dialog', { name: 'Código repetido' });
+  await expect(repeat).toBeVisible();
+  await repeat.getByRole('button', { name: 'Ignorar', exact: true }).click();
+  await expect(repeat).toBeHidden();
+  await expect(page.locator('.session-heading p')).toContainText('2 registros');
 });

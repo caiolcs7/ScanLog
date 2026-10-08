@@ -11,6 +11,8 @@ export function unlockAudio() {
 export function feedback(kind: string, settings: Settings) {
   const error = kind === 'error',
     address = kind === 'address' || kind === 'galao' || kind === 'waiting';
+  // A logo reage a cada leitura (ver BrandLogo).
+  window.dispatchEvent(new CustomEvent('scanlog:feedback', { detail: kind }));
   if (settings.vibration)
     navigator.vibrate?.(error ? [60, 50, 60] : address ? [25, 35, 25] : 25);
   if (!settings.sound || !audio || audio.state !== 'running') return;

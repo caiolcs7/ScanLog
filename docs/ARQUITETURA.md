@@ -43,3 +43,7 @@ Atualizações usam prompt: a nova versão espera a ação Atualizar. O botão d
 ExcelJS é carregado sob demanda e já está disponível no cache offline. O XLSX usa apenas A/B como colunas de dados: Código do Produto e Endereço. Há título mesclado, sessão/data, cabeçalhos na linha 5, linhas alternadas, texto explícito para identificadores, bordas, filtro, congelamento e impressão A4 ajustada à largura. Ordenação pode seguir leitura, endereço ou produto; opcionalmente há abas por rua, além da aba Todos os registros. CSV e backup JSON são recursos complementares.
 
 Não foi implementada importação de XLSX, explicitamente opcional no pedido; restauração de backup JSON está disponível. Sincronização, login e serviços de nuvem ficam fora desta versão.
+
+## Levantamento com peso
+
+Sessões com `weighted: true` (aba Com peso) guardam `weight` em gramas por registro, aceitando valores abaixo de 1 g. Ao ler um produto, o peso é preenchido por `src/data/weights.json`, gerado com `node scripts/weights.mjs <caminho do localizador-de-materiais>` a partir dos descritivos com "PESO"; sem peso conhecido, o app pede o valor. O peso pode ser alterado na leitura e na lista de registros. A exportação acrescenta a coluna Peso em kg (10 g → 0,010 kg; 0,24 g → 0,00024 kg), como número no XLSX.
