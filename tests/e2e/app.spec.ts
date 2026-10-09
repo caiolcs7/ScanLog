@@ -133,6 +133,8 @@ test('button capture, actual reticle crop, continuous option, cancellation and o
   await page.waitForTimeout(1200);
   await expect(page.locator('.session-heading p')).toContainText('1 registros');
   await frame([]);
+  // Let the synthetic camera publish the blank frame before arming.
+  await page.waitForTimeout(600);
   await page.getByRole('button', { name: 'Ler código', exact: true }).click();
   await page
     .getByRole('button', { name: 'Cancelar leitura', exact: true })

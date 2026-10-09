@@ -1838,11 +1838,12 @@
     left: 10px;
     right: 10px;
     top: 0;
-    height: 2px;
-    border-radius: 2px;
-    background: currentColor;
-    box-shadow: 0 0 12px 1px currentColor;
+    height: 100%;
+    background: linear-gradient(currentColor, currentColor) top / 100% 2px
+      no-repeat;
+    filter: drop-shadow(0 0 6px currentColor);
     opacity: 0;
+    pointer-events: none;
   }
   .camera-view.scanning .scan-reticle::after {
     animation: reticle-sweep 1.8s var(--ease-in-out) infinite alternate;
@@ -1852,14 +1853,14 @@
   }
   @keyframes reticle-sweep {
     from {
-      top: 6%;
+      transform: translateY(6%);
       opacity: 0.25;
     }
     50% {
       opacity: 0.9;
     }
     to {
-      top: 94%;
+      transform: translateY(94%);
       opacity: 0.25;
     }
   }
@@ -1897,8 +1898,12 @@
     height: 7px;
     border-radius: 50%;
     background: #ff8a4c;
-    animation: status-breathe 1.6s var(--ease-in-out) infinite;
-    color: #ff8a4c;
+    animation: live-blink 1.6s var(--ease-in-out) infinite;
+  }
+  @keyframes live-blink {
+    50% {
+      opacity: 0.35;
+    }
   }
   .camera-controls {
     display: flex;
