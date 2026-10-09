@@ -4041,3 +4041,361 @@
     }
   }
 }
+
+/* Logo animada, levantamento com peso e aviso de código repetido. */
+@layer components {
+  .brand-logo {
+    display: flex;
+    align-items: center;
+    gap: inherit;
+    --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --out: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .logo-mark {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .logo-mark .logo-spin {
+    transform-box: view-box;
+    transform-origin: 50px 50px;
+    transition: transform 700ms var(--spring);
+  }
+  .logo-block,
+  .logo-core {
+    fill: #ffffff;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .logo-block {
+    transition: transform 500ms var(--spring);
+    animation: logo-assemble 900ms var(--spring) both;
+    animation-delay: calc(var(--i) * 70ms + 80ms);
+  }
+  .logo-core {
+    transition: fill 200ms ease-out;
+    animation: logo-core-in 520ms var(--spring) 480ms both;
+  }
+  .logo-shine {
+    opacity: 0;
+    animation: logo-shine 7s var(--out) 1.4s infinite;
+  }
+  .logo-letter {
+    stroke-dasharray: 1;
+    animation: logo-draw 900ms var(--out) both;
+    animation-delay: calc(var(--i) * 75ms + 260ms);
+  }
+  .logo-target {
+    fill: var(--gold);
+    transform-box: fill-box;
+    transform-origin: center;
+    transform: rotate(45deg);
+    animation:
+      logo-target-in 480ms var(--spring) 1.05s both,
+      logo-target 7s ease-in-out 2.4s infinite;
+  }
+  .logo-word {
+    color: #ffffff;
+  }
+
+  /* Hover/foco: o cata-vento gira 90° e as peças respiram. */
+  .brand:hover .logo-spin,
+  .brand:focus-visible .logo-spin {
+    transform: rotate(90deg);
+  }
+  .brand:hover .logo-block,
+  .brand:focus-visible .logo-block {
+    transform: translate(calc(var(--dx) * 0.14), calc(var(--dy) * 0.14));
+  }
+  .brand:active .logo-spin {
+    transform: rotate(90deg) scale(0.9);
+    transition-duration: 160ms;
+  }
+
+  /* Leitura registrada: peças travam no centro e o núcleo acende. */
+  .brand-logo.is-lock .logo-block {
+    animation: logo-lock 620ms var(--spring);
+  }
+  .brand-logo.is-lock .logo-core {
+    fill: var(--gold);
+    animation: logo-core-flash 620ms var(--spring);
+  }
+  .brand-logo.is-lock .logo-target {
+    animation: logo-target-flash 620ms var(--spring);
+  }
+  .brand-logo.is-error .brand-mark {
+    animation: logo-shake 420ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+
+  @keyframes logo-assemble {
+    from {
+      opacity: 0;
+      transform: translate(calc(var(--dx) * 2.4), calc(var(--dy) * 2.4))
+        scale(0.6);
+    }
+  }
+  @keyframes logo-core-in {
+    from {
+      opacity: 0;
+      transform: scale(0) rotate(-90deg);
+    }
+  }
+  @keyframes logo-draw {
+    from {
+      stroke-dashoffset: 1;
+      opacity: 0.2;
+    }
+    to {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+  }
+  @keyframes logo-target-in {
+    from {
+      opacity: 0;
+      transform: rotate(-45deg) scale(0);
+    }
+  }
+  @keyframes logo-shine {
+    0% {
+      opacity: 0;
+      transform: translateX(0) skewX(-20deg);
+    }
+    4% {
+      opacity: 1;
+    }
+    16% {
+      opacity: 1;
+      transform: translateX(200px) skewX(-20deg);
+    }
+    17%,
+    100% {
+      opacity: 0;
+      transform: translateX(200px) skewX(-20deg);
+    }
+  }
+  @keyframes logo-target {
+    0%,
+    86%,
+    100% {
+      transform: rotate(45deg) scale(1);
+      filter: none;
+    }
+    92% {
+      transform: rotate(135deg) scale(1.45);
+      filter: drop-shadow(0 0 6px var(--gold));
+    }
+  }
+  @keyframes logo-lock {
+    40% {
+      transform: translate(calc(var(--dx) * -0.22), calc(var(--dy) * -0.22))
+        scale(0.94);
+    }
+  }
+  @keyframes logo-core-flash {
+    40% {
+      transform: scale(1.6) rotate(90deg);
+    }
+  }
+  @keyframes logo-target-flash {
+    40% {
+      transform: rotate(135deg) scale(1.6);
+      filter: drop-shadow(0 0 8px var(--gold));
+    }
+  }
+  @keyframes logo-shake {
+    20%,
+    60% {
+      transform: translateX(-3px) rotate(-4deg);
+    }
+    40%,
+    80% {
+      transform: translateX(3px) rotate(4deg);
+    }
+  }
+
+  /* Levantamento com peso */
+  .tabs button .tab-icon {
+    width: 15px;
+    height: 15px;
+  }
+  .tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  @media (max-width: 440px) {
+    .tabs {
+      gap: 4px;
+    }
+    .tabs button {
+      padding-inline: 10px;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .tabs button .tab-icon {
+      display: none;
+    }
+  }
+  .status.weighted {
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    font-weight: 600;
+  }
+  .status.weighted::before {
+    display: none;
+  }
+  .status.weighted svg {
+    width: 14px;
+    height: 14px;
+  }
+  .weight-toggle {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-muted);
+    cursor: pointer;
+    transition:
+      border-color var(--transition),
+      background var(--transition);
+  }
+  .weight-toggle:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .weight-toggle input {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--accent);
+    flex: none;
+  }
+  .weight-toggle > svg {
+    color: var(--accent);
+    flex: none;
+  }
+  .weight-toggle span {
+    display: grid;
+    gap: 2px;
+    font-weight: 600;
+  }
+  .weight-toggle small {
+    font-weight: 400;
+    color: var(--text-secondary);
+  }
+  .weight-form {
+    display: grid;
+    gap: 12px;
+  }
+  .weight-code {
+    font-size: 20px;
+    overflow-wrap: anywhere;
+  }
+  .weight-input {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-inline: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-elevated);
+    transition:
+      border-color var(--transition),
+      box-shadow var(--transition);
+  }
+  .weight-input:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent);
+  }
+  .weight-input input:focus,
+  .weight-input input:focus-visible {
+    box-shadow: none !important;
+    outline: none !important;
+  }
+  .weight-input:has([aria-invalid='true']) {
+    border-color: var(--danger);
+  }
+  .weight-input > svg {
+    color: var(--accent);
+    flex: none;
+  }
+  .weight-input input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding-inline: 0;
+    outline: none;
+  }
+  .weight-input > span {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .weight-catalog {
+    justify-self: start;
+    min-height: 36px;
+    font-size: 13px;
+    color: var(--accent-ink);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .feedback-weight {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    min-height: 34px;
+    margin-top: 6px;
+    padding: 4px 12px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .feedback-weight svg {
+    width: 16px;
+    height: 16px;
+    color: var(--accent);
+  }
+  .feedback-weight span {
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .recent-weight {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-ink);
+  }
+  .weight-chip {
+    min-height: 34px;
+    padding: 4px 10px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* Código repetido: janela modal que pausa a leitura. */
+  .duplicate-dialog {
+    display: grid;
+    gap: 4px;
+  }
+  .duplicate-dialog__icon {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    color: var(--warning);
+    background: var(--warning-soft);
+    animation: logo-core-in 420ms var(--ease-out) backwards;
+  }
+}

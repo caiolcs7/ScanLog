@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   X,
   CheckCircle2,
+  Scale,
+  CopyCheck,
 } from 'lucide-react';
 import {
   db,
@@ -56,6 +58,8 @@ import { ExportDialog } from '../export/ExportDialog';
 import { RecordsView } from '../records/RecordsView';
 import { feedback } from '../../services/feedback';
 import { discardFrame, readDescription } from '../../services/ocr';
+import { WeightDialog } from '../weight/WeightDialog';
+import { formatGrams } from '../../core/weight';
 
 export function SessionPage({
   id,
@@ -82,14 +86,20 @@ export function SessionPage({
     [resolvingAddress, setResolvingAddress] = useState(false),
     [resolvingDuplicate, setResolvingDuplicate] = useState(false),
     [readingText, setReadingText] = useState(''),
-    [editingGalao, setEditingGalao] = useState(false);
+    [editingGalao, setEditingGalao] = useState(false),
+    [weighing, setWeighingState] = useState<InventoryRecord | null>(null);
   const pendingDuplicate = useRef<DuplicateCandidate | null>(null),
     pendingAddress = useRef<AddressChangeCandidate | null>(null),
     addressLock = useRef(false),
     scanQueue = useRef(Promise.resolve()),
     duplicateLock = useRef(false),
     sameGalaoRef = useRef(false),
-    galaoJumpRef = useRef(0);
+    galaoJumpRef = useRef(0),
+    weighingRef = useRef<InventoryRecord | null>(null);
+  function setWeighing(record: InventoryRecord | null) {
+    weighingRef.current = record;
+    setWeighingState(record);
+  }
   const [sameGalao, setSameGalaoState] = useState(false),
     [galaoJump, setGalaoJumpState] = useState(0);
   function setGalaoJump(value: number) {
@@ -104,11 +114,20 @@ export function SessionPage({
   const notice = useNotice(),
     task = useTask();
   const blocked =
-    manual || exporting || finishing || !!duplicate || !!addressChange;
+    manual ||
+    exporting ||
+    finishing ||
+    !!duplicate ||
+    !!addressChange ||
+    !!weighing;
   function result(scan: ScanResult) {
-    setLast(scan);
+    // Repetição só aparece na janela de confirmação, não no topo.
+    if (!scan.duplicate) setLast(scan);
     feedback(scan.kind, settings);
     if (scan.record) setGalaoJump(0);
+    // Levantamento com peso: sem peso no catálogo, pede o peso na hora.
+    if (session?.weighted && scan.record && scan.record.weight === undefined)
+      setWeighing(scan.record);
     if (scan.duplicate) {
       pendingDuplicate.current = scan.duplicate;
       setDuplicate(scan.duplicate);
@@ -144,7 +163,11 @@ export function SessionPage({
     frame?: HTMLCanvasElement,
   ) {
     scanQueue.current = scanQueue.current.then(async () => {
-      if (pendingDuplicate.current || pendingAddress.current) {
+      if (
+        pendingDuplicate.current ||
+        pendingAddress.current ||
+        weighingRef.current
+      ) {
         discardFrame(frame);
         notice(
           'Leitura pausada: resolva a confirmação e leia a próxima etiqueta novamente.',
@@ -686,6 +709,19 @@ export function SessionPage({
                       {last.record.galao ? ` · ${last.record.galao}` : ''}
                     </span>
                   )}
+                  {session.weighted && last?.record && (
+                    <button
+                      className="feedback-weight"
+                      onClick={() => setWeighing(last.record!)}
+                      disabled={blocked}
+                    >
+                      <Scale />
+                      {last.record.weight
+                        ? formatGrams(last.record.weight)
+                        : 'Sem peso'}
+                      <span>Alterar</span>
+                    </button>
+                  )}
                   {last?.record?.description ? (
                     <span className="feedback-description">
                       {last.record.description}
@@ -700,28 +736,6 @@ export function SessionPage({
                   )}
                 </div>
               </div>
-              {duplicate && (
-                <div className="duplicate-warning" role="alert">
-                  <strong>Este item já foi registrado neste endereço.</strong>
-                  <code>{duplicate.code}</code>
-                  <code>{duplicate.address}</code>
-                  <div>
-                    <button
-                      disabled={resolvingDuplicate}
-                      onClick={() => void task(() => resolveRepeat(false))}
-                    >
-                      Ignorar
-                    </button>
-                    <button
-                      className="primary"
-                      disabled={resolvingDuplicate}
-                      onClick={() => void task(() => resolveRepeat(true))}
-                    >
-                      Adicionar novamente
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
             <ScannerPanel
               settings={settings}
@@ -769,6 +783,13 @@ export function SessionPage({
                               {record.address}
                               {record.galao ? ` · ${record.galao}` : ''}
                             </span>
+                            {session.weighted && (
+                              <span className="recent-weight">
+                                {record.weight
+                                  ? formatGrams(record.weight)
+                                  : 'Sem peso'}
+                              </span>
+                            )}
                             {record.description && (
                               <span className="recent-description">
                                 {record.description}
@@ -808,6 +829,66 @@ export function SessionPage({
           onResult={result}
         />
       )}{' '}
+      {duplicate && (
+        <Modal
+          title="Código repetido"
+          onClose={() => {
+            if (!duplicateLock.current) void task(() => resolveRepeat(false));
+          }}
+        >
+          <div className="duplicate-dialog">
+            <span className="duplicate-dialog__icon" aria-hidden="true">
+              <CopyCheck />
+            </span>
+            <p>
+              Este código já foi lido neste endereço. A leitura está pausada até
+              você escolher.
+            </p>
+            <div className="address-change-codes">
+              <div>
+                <span>Código</span>
+                <code>{duplicate.code}</code>
+              </div>
+              <div>
+                <span>Endereço</span>
+                <code>{duplicate.address}</code>
+              </div>
+            </div>
+          </div>
+          <div className="modal-actions wrap">
+            <button
+              disabled={resolvingDuplicate}
+              onClick={() => void task(() => resolveRepeat(false))}
+            >
+              Ignorar
+            </button>
+            <button
+              className="primary"
+              disabled={resolvingDuplicate}
+              onClick={() => void task(() => resolveRepeat(true))}
+            >
+              {resolvingDuplicate ? 'Salvando…' : 'Adicionar mesmo assim'}
+            </button>
+          </div>
+        </Modal>
+      )}
+      {weighing && (
+        <WeightDialog
+          record={weighing}
+          onClose={(saved) => {
+            if (saved !== undefined)
+              setLast((current) =>
+                current?.record?.id === weighing.id
+                  ? {
+                      ...current,
+                      record: { ...current.record, weight: saved ?? undefined },
+                    }
+                  : current,
+              );
+            setWeighing(null);
+          }}
+        />
+      )}
       {addressChange && (
         <Modal
           title="Trocar endereço?"

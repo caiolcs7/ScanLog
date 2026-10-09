@@ -21,6 +21,7 @@ const session: Session = {
   mode: 'fixed',
   pending: null,
   completedAddresses: [],
+  weighted: false,
 };
 const rows: InventoryRecord[] = [
   ['ITPFPHM510ESAI4', 'R01A1C03DP02'],

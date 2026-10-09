@@ -68,6 +68,16 @@ export class InventoryDatabase extends Dexie {
             session.activeGalao ??= '';
           });
       });
+    this.version(7)
+      .stores({})
+      .upgrade(async (transaction) => {
+        await transaction
+          .table<Session, string>('sessions')
+          .toCollection()
+          .modify((session) => {
+            session.weighted ??= false;
+          });
+      });
   }
 }
 export const db = new InventoryDatabase();
@@ -76,7 +86,11 @@ export async function initializeDatabase() {
   if (!(await db.settings.get('main')))
     await db.settings.put(structuredClone(defaultSettings));
 }
-export async function createSession(name: string, mode: Settings['mode']) {
+export async function createSession(
+  name: string,
+  mode: Settings['mode'],
+  weighted = false,
+) {
   if (!name.trim() || name.trim().length > 100)
     throw new Error('Informe um nome com até 100 caracteres.');
   const now = Date.now();
@@ -94,6 +108,7 @@ export async function createSession(name: string, mode: Settings['mode']) {
     mode,
     pending: null,
     completedAddresses: [],
+    weighted,
   };
   await db.sessions.add(session);
   return session;
@@ -129,6 +144,7 @@ export async function duplicateSession(id: string) {
     const copy = await createSession(
       `${original.name.slice(0, 90)} (cópia)`,
       original.mode,
+      original.weighted,
     );
     const records = await db.records.where('sessionId').equals(id).toArray();
     await db.records.bulkAdd(

@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import type { InventoryRecord, Session } from '../core/models';
 import { extractStreet } from '../core/parser';
+import { formatKg, kgDecimals } from '../core/weight';
 
 export type ExportOptions = {
   sort: 'order' | 'address' | 'code';
@@ -33,16 +34,26 @@ export function reportFilename(session: Session, format = 'xlsx') {
   const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   return `Relatorio_Almoxarifado_${name}_${localDate}.${format}`;
 }
-export function exportColumns(records: InventoryRecord[]) {
+export function exportColumns(
+  records: InventoryRecord[],
+  weighted = records.some((r) => r.weight !== undefined),
+) {
   const headers = ['Código do Produto', 'Endereço', 'Galão'];
   const withDescription = records.some((r) => r.description);
+  if (weighted) headers.push('Peso');
   if (withDescription) headers.push('Descritivo');
   return {
     headers,
-    row: (r: InventoryRecord) =>
-      withDescription
-        ? [r.code, r.address, r.galao ?? '', r.description ?? '']
-        : [r.code, r.address, r.galao ?? ''],
+    weighted,
+    withDescription,
+    /** Peso exportado em kg (gramas ÷ 1000). */
+    row: (r: InventoryRecord) => [
+      r.code,
+      r.address,
+      r.galao ?? '',
+      ...(weighted ? [r.weight ? formatKg(r.weight) : ''] : []),
+      ...(withDescription ? [r.description ?? ''] : []),
+    ],
   };
 }
 export function createWorkbook(
@@ -54,7 +65,7 @@ export function createWorkbook(
   workbook.creator = 'ScanLog';
   workbook.created = new Date();
   const sorted = sortRecords(records, options.sort);
-  const columns = exportColumns(records);
+  const columns = exportColumns(records, session.weighted || undefined);
   const last = String.fromCharCode(64 + columns.headers.length);
   const groups = new Map<string, InventoryRecord[]>([
     ['Todos os registros', sorted],
@@ -100,9 +111,8 @@ export function createWorkbook(
         ),
       },
       { key: 'galao', width: 16 },
-      ...(columns.headers.length > 3
-        ? [{ key: 'description', width: 60 }]
-        : []),
+      ...(columns.weighted ? [{ key: 'weight', width: 18 }] : []),
+      ...(columns.withDescription ? [{ key: 'description', width: 60 }] : []),
     ];
     sheet.mergeCells(`A1:${last}1`);
     sheet.getCell('A1').value = 'RELATÓRIO DE LOCALIZAÇÃO DE MATERIAIS';
@@ -153,17 +163,24 @@ export function createWorkbook(
       };
       cell.alignment = { vertical: 'middle', indent: 1 };
     });
+    const weightColumn = columns.weighted ? 4 : 0;
     rows.forEach((record, index) => {
       const row = sheet.addRow(columns.row(record));
       row.height = 24;
       row.eachCell((cell, column) => {
         cell.numFmt = '@';
+        if (column === weightColumn && record.weight) {
+          // Número real em kg, exibido como 0,010 kg / 0,00024 kg.
+          cell.value = record.weight / 1000;
+          cell.numFmt = `0.${'0'.repeat(kgDecimals(record.weight))}" kg"`;
+        }
         cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF3B1A5A' } };
         cell.alignment = {
           vertical: 'middle',
           horizontal: 'left',
           indent: 1,
-          wrapText: column === 4,
+          wrapText:
+            column === columns.headers.length && columns.withDescription,
         };
         cell.fill = {
           type: 'pattern',
@@ -194,15 +211,14 @@ export function createWorkbook(
 export function createCsv(
   records: InventoryRecord[],
   sort: ExportOptions['sort'],
+  weighted?: boolean,
 ) {
+  const columns = exportColumns(records, weighted);
   const safe = (value: string) =>
     `"${(/^[=+@\-\t\r]/.test(value) ? `'${value}` : value).replaceAll('"', '""')}"`;
   return (
     '\uFEFF' +
-    [
-      exportColumns(records).headers,
-      ...sortRecords(records, sort).map(exportColumns(records).row),
-    ]
+    [columns.headers, ...sortRecords(records, sort).map(columns.row)]
       .map((row) => row.map(safe).join(';'))
       .join('\r\n')
   );
@@ -224,9 +240,12 @@ export async function exportSession(
 ) {
   if (options.format === 'csv') {
     downloadBlob(
-      new Blob([createCsv(records, options.sort)], {
-        type: 'text/csv;charset=utf-8;',
-      }),
+      new Blob(
+        [createCsv(records, options.sort, session.weighted || undefined)],
+        {
+          type: 'text/csv;charset=utf-8;',
+        },
+      ),
       reportFilename(session, 'csv'),
     );
     return;

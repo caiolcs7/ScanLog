@@ -15,6 +15,8 @@ import {
 import type { InventoryRecord, Session, Settings } from '../../core/models';
 import { db, removeRecords, restoreRecords } from '../../core/database';
 import { editRecords } from '../../core/scan-engine';
+import { formatGrams } from '../../core/weight';
+import { WeightDialog } from '../weight/WeightDialog';
 import { extractStreet, parseScan, searchText } from '../../core/parser';
 import { reviewIssues } from '../../core/statistics';
 import {
@@ -36,6 +38,7 @@ export function RecordsView({
   records: InventoryRecord[];
   settings: Settings;
 }) {
+  const [weighing, setWeighing] = useState<InventoryRecord | null>(null);
   const [search, setSearch] = useState(''),
     [street, setStreet] = useState(''),
     [address, setAddress] = useState(''),
@@ -267,6 +270,7 @@ export function RecordsView({
               <th>Código do Produto</th>
               <th>Endereço</th>
               <th>Galão</th>
+              {session.weighted && <th>Peso</th>}
               <th className="time-cell">Leitura</th>
               <th>
                 <span className="sr-only">Ações</span>
@@ -332,6 +336,18 @@ export function RecordsView({
                 <td className="record-galao">
                   {record.galao ? <GalaoCode value={record.galao} /> : '—'}
                 </td>
+                {session.weighted && (
+                  <td className="record-weight">
+                    <button
+                      className="weight-chip"
+                      disabled={readOnly}
+                      aria-label={`Peso do registro ${record.order}`}
+                      onClick={() => setWeighing(record)}
+                    >
+                      {record.weight ? formatGrams(record.weight) : 'Informar'}
+                    </button>
+                  </td>
+                )}
                 <td className="time-cell">
                   {dateTime(record.timestamp)}
                   {record.source === 'manual' && (
@@ -427,6 +443,9 @@ export function RecordsView({
             </p>
           )}
         </details>
+      )}
+      {weighing && (
+        <WeightDialog record={weighing} onClose={() => setWeighing(null)} />
       )}
       {editing && (
         <EditDialog
