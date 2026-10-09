@@ -19,6 +19,7 @@ import { extractStreet, parseScan, searchText } from '../../core/parser';
 import { reviewIssues } from '../../core/statistics';
 import {
   Confirm,
+  GalaoCode,
   Modal,
   dateTime,
   errorMessage,
@@ -329,7 +330,7 @@ export function RecordsView({
                   </div>
                 </td>
                 <td className="record-galao">
-                  {record.galao ? <code>{record.galao}</code> : '—'}
+                  {record.galao ? <GalaoCode value={record.galao} /> : '—'}
                 </td>
                 <td className="time-cell">
                   {dateTime(record.timestamp)}

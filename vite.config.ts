@@ -38,7 +38,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,wasm,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,wasm,webmanifest,woff2}'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
@@ -47,7 +47,8 @@ export default defineConfig({
         // reading is enabled, stay available offline after the first use.
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/(tesseract|@tesseract)/,
+            urlPattern:
+              /^https:\/\/cdn\.jsdelivr\.net\/npm\/(tesseract|@tesseract)/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'ocr-assets',

@@ -145,7 +145,14 @@ export function ScannerPanel({
               <option value="continuous">Contínua · sem botão</option>
             </select>
           </label>
-          <div className={`camera-view ${camera.running ? 'running' : ''}`}>
+          <div
+            className={`camera-view ${camera.running ? 'running' : ''} ${
+              camera.running &&
+              (camera.armed || settings.cameraCapture === 'continuous')
+                ? 'scanning'
+                : ''
+            }`}
+          >
             <video
               ref={video}
               muted

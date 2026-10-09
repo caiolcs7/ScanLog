@@ -205,6 +205,16 @@ export function ExcelIcon() {
     </svg>
   );
 }
+/** Galão identifier with the upper-floor (A2) suffix highlighted. */
+export function GalaoCode({ value }: { value: string }) {
+  const upper = /^R[0-9]+G[0-9]+S$/.test(value);
+  return (
+    <code title={upper ? 'Galão do andar 2 (sufixo S)' : undefined}>
+      {upper ? value.slice(0, -1) : value}
+      {upper && <span className="galao-suffix">S</span>}
+    </code>
+  );
+}
 export type MenuItem = {
   label: string;
   icon: ReactNode;

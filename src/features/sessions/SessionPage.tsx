@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowLeft,
@@ -39,10 +39,11 @@ import {
   type AddressChangeCandidate,
 } from '../../core/scan-engine';
 import { statistics } from '../../core/statistics';
-import { extractStreet } from '../../core/parser';
+import { addressParts, bombonaSeries } from '../../core/parser';
 import {
   errorMessage,
   ExcelIcon,
+  GalaoCode,
   Loading,
   Modal,
   navigate,
@@ -296,6 +297,7 @@ export function SessionPage({
           galaoJump,
         )
       : null,
+    parts = addressParts(session.activeAddress),
     galaoCount = session.activeGalao
       ? records.filter((r) => r.galao === session.activeGalao).length
       : 0;
@@ -394,10 +396,33 @@ export function SessionPage({
                 )}
               </div>
               <strong
+                key={session.activeAddress}
                 className={`address-value mono ${!session.activeAddress ? 'no-address' : ''}`}
               >
                 {session.activeAddress || 'Leia um endereço'}
               </strong>
+              {parts && (
+                <ul
+                  className="address-parts"
+                  aria-label="Partes do endereço"
+                  key={`parts-${session.activeAddress}`}
+                >
+                  {parts.map((part, index) => (
+                    <li
+                      key={part.label}
+                      className={
+                        part.label === 'Andar' && Number(part.value) === 2
+                          ? 'upper'
+                          : undefined
+                      }
+                      style={{ '--i': index } as CSSProperties}
+                    >
+                      {part.label}
+                      <strong>{part.value}</strong>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="address-detail">
                 <span>
                   {session.activeAddress
@@ -467,11 +492,20 @@ export function SessionPage({
                         ? 'Próximo galão (salto)'
                         : 'Próximo galão'}
                   </span>
-                  <strong
-                    className={`galao-value mono ${bombona ? '' : 'empty'}`}
-                  >
-                    {bombona || 'Leia um endereço'}
-                  </strong>
+                  {bombona ? (
+                    <strong className="galao-value">
+                      <GalaoCode value={bombona} />
+                    </strong>
+                  ) : (
+                    <strong className="galao-value empty">
+                      Leia um endereço
+                    </strong>
+                  )}
+                  {bombona.endsWith('S') && (
+                    <span className="floor-tag" title="Endereço no andar 2">
+                      Andar 2
+                    </span>
+                  )}
                   <label className="galao-jump">
                     Pular para G
                     <input
@@ -541,11 +575,13 @@ export function SessionPage({
                     </form>
                   ) : (
                     <>
-                      <strong
-                        className={`galao-value mono ${session.activeGalao ? '' : 'empty'}`}
-                      >
-                        {session.activeGalao || 'Nenhum'}
-                      </strong>
+                      {session.activeGalao ? (
+                        <strong className="galao-value">
+                          <GalaoCode value={session.activeGalao} />
+                        </strong>
+                      ) : (
+                        <strong className="galao-value empty">Nenhum</strong>
+                      )}
                       {session.activeGalao && (
                         <span className="galao-count">{galaoCount} itens</span>
                       )}
@@ -621,6 +657,7 @@ export function SessionPage({
             </div>
             <div className="operation-feedback">
               <div
+                key={feedbackKey(last)}
                 className={`scan-feedback ${last?.kind ?? 'ready'}`}
                 role="status"
                 aria-live="polite"
@@ -720,8 +757,11 @@ export function SessionPage({
                     {records
                       .slice(-4)
                       .reverse()
-                      .map((record) => (
-                        <li key={record.id}>
+                      .map((record, index) => (
+                        <li
+                          key={record.id}
+                          style={{ '--i': index } as CSSProperties}
+                        >
                           <Check />
                           <div>
                             <code>{record.code}</code>
@@ -879,6 +919,15 @@ export function SessionPage({
     </main>
   );
 }
+const feedbackKeys = new WeakMap<object, number>();
+let feedbackSeq = 0;
+/** Stable key per scan result so each new reading replays its entrance. */
+function feedbackKey(result: object | null) {
+  if (!result) return 0;
+  let key = feedbackKeys.get(result);
+  if (key === undefined) feedbackKeys.set(result, (key = ++feedbackSeq));
+  return key;
+}
 function nextBombonaPreview(
   records: InventoryRecord[],
   address: string,
@@ -886,16 +935,16 @@ function nextBombonaPreview(
   start: number,
   jump: number,
 ) {
-  const street = extractStreet(address);
-  if (!address || street === 'Sem rua') return '';
+  const series = bombonaSeries(address);
+  if (!address || series === 'Sem rua') return '';
   const rows = records.filter(
-    (r) => r.galaoGroup && extractStreet(r.address) === street,
+    (r) => r.galaoGroup && bombonaSeries(r.address) === series,
   );
   const last = rows.at(-1);
   if (same && last?.galao) return last.galao;
   return bombonaLabel(
-    street,
-    nextBombonaNumber(rows, street, start, jump || undefined),
+    series,
+    nextBombonaNumber(rows, series, start, jump || undefined),
   );
 }
 function expected(session: Session) {

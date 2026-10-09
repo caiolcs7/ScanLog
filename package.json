@@ -20,6 +20,8 @@
     "test:fixtures": "node scripts/fixtures.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "dexie": "^4.4.6",
     "dexie-react-hooks": "^4.4.0",
     "exceljs": "^4.4.0",

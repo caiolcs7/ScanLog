@@ -200,16 +200,47 @@ export function parseScan(raw: string, rules: Rules): ParsedScan {
 export function extractStreet(address: string): string {
   return /^R[0-9]+(?=[A-Z]|$)/.exec(address)?.[0] ?? 'Sem rua';
 }
+/** Upper-floor (A2) bombonas carry an S suffix: R15A2… → R15G01S. */
+export function bombonaSuffix(address: string): string {
+  return /^R[0-9]+A2(?![0-9])/.test(address) ? 'S' : '';
+}
+/** Bombona numbering series of an address: street plus floor suffix (R15, R15S). */
+export function bombonaSeries(address: string): string {
+  const street = extractStreet(address);
+  return street === 'Sem rua' ? street : street + bombonaSuffix(address);
+}
+/**
+ * Named segments of a standard location (R15A2C01DP02 → rua 15, andar 2,
+ * coluna 01, lado D, prateleira 02). Other location shapes return null.
+ */
+export function addressParts(
+  address: string,
+): { label: string; value: string }[] | null {
+  const match =
+    /^R([0-9]{2,3})A([0-9]{1,3})C([0-9]{1,3})([A-Z])P([0-9]{1,3})$/.exec(
+      address,
+    );
+  if (!match) return null;
+  const [, rua, andar, coluna, lado, prateleira] = match;
+  return [
+    { label: 'Rua', value: rua },
+    { label: 'Andar', value: andar },
+    { label: 'Coluna', value: coluna },
+    { label: 'Lado', value: lado },
+    { label: 'Prateleira', value: prateleira },
+  ];
+}
 export function searchText(value: string): string {
   return cleanText(value);
 }
 /**
  * Galão labels identify the storage container (e.g. R16G01). They hold many
  * products, so a scanned galão becomes sticky context, like the address.
+ * Upper-floor (A2) galões end with S (e.g. R16G01S).
  */
 export function parseGalao(raw: string): string | null {
   const value = cleanText(raw).replace(/[^A-Z0-9]/g, '');
-  return /^R[0-9]{1,3}G[0-9]{1,3}$/.test(value) ? value : null;
+  return /^R[0-9]{1,3}G[0-9]{1,3}S?$/.test(value) ? value : null;
 }
 /** Manual galão entry: any short alphanumeric identifier. */
 export function normalizeGalao(raw: string): string {

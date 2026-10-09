@@ -26,6 +26,7 @@ describe('galão as sticky context', () => {
   it('recognizes galão labels without mistaking addresses or products', () => {
     expect(parseGalao('R16G01')).toBe('R16G01');
     expect(parseGalao(' r16-g01 ')).toBe('R16G01');
+    expect(parseGalao('R16G01S')).toBe('R16G01S');
     expect(parseGalao('R16A1C01DP02')).toBeNull();
     expect(parseGalao('ITCP001M0016A')).toBeNull();
   });

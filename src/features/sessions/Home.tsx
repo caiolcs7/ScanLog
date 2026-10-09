@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowRight,
@@ -140,8 +140,12 @@ export function Home({ settings }: { settings: Settings }) {
         </section>
       ) : (
         <div className="session-list">
-          {filtered.map((session) => (
-            <article className="session-row" key={session.id}>
+          {filtered.map((session, index) => (
+            <article
+              className={`session-row ${session.status}`}
+              key={session.id}
+              style={{ '--i': Math.min(index, 8) } as CSSProperties}
+            >
               <div className="session-symbol">
                 {session.status === 'completed' ? (
                   <CheckCircle2 />
@@ -161,7 +165,9 @@ export function Home({ settings }: { settings: Settings }) {
                   {session.name}
                 </button>
                 <div className="session-meta">
-                  <span>{session.count} registros</span>
+                  <span>
+                    <strong>{session.count}</strong> registros
+                  </span>
                   <span>Atualizado {dateTime(session.updatedAt)}</span>
                   <span className={`status ${session.status}`}>
                     {session.status === 'active'

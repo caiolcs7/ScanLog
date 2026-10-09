@@ -1,6 +1,6 @@
 import { bombonaLabel, bombonaNumbers, db, renumberBombonas } from './database';
 import type { InventoryRecord, Session, Settings, Source } from './models';
-import { extractStreet, normalizeGalao, parseGalao, parseScan } from './parser';
+import { bombonaSeries, normalizeGalao, parseGalao, parseScan } from './parser';
 
 export type DuplicateCandidate = {
   code: string;
@@ -367,7 +367,7 @@ export async function setRecordDescription(id: string, description: string) {
   const value = description.trim().slice(0, 300);
   if (value) await db.records.update(id, { description: value });
 }
-/** Next automatic bombona for the street of an address (or the current one). */
+/** Next automatic bombona for the street/floor series of an address. */
 export async function nextBombona(
   sessionId: string,
   address: string,
@@ -375,28 +375,28 @@ export async function nextBombona(
   start = 1,
   jump?: number,
 ) {
-  const street = extractStreet(address);
-  if (street === 'Sem rua') return null;
+  const series = bombonaSeries(address);
+  if (series === 'Sem rua') return null;
   const rows = (
     await db.records.where('sessionId').equals(sessionId).sortBy('order')
-  ).filter((r) => r.galaoGroup && extractStreet(r.address) === street);
+  ).filter((r) => r.galaoGroup && bombonaSeries(r.address) === series);
   const last = rows.at(-1);
   if (same && last?.galaoGroup && last.galao)
     return { galao: last.galao, group: last.galaoGroup, jump: undefined };
-  const n = nextBombonaNumber(rows, street, start, jump);
+  const n = nextBombonaNumber(rows, series, start, jump);
   return {
-    galao: bombonaLabel(street, n),
+    galao: bombonaLabel(series, n),
     group: crypto.randomUUID(),
     jump: jump === n ? jump : undefined,
   };
 }
-/** Number of the next new bombona of a street, honoring a requested jump. */
+/** Number of the next new bombona of a series, honoring a requested jump. */
 export function nextBombonaNumber(
   rows: InventoryRecord[],
-  street: string,
+  series: string,
   start = 1,
   jump?: number,
 ) {
-  const next = (bombonaNumbers(rows, start).last.get(street) ?? start - 1) + 1;
+  const next = (bombonaNumbers(rows, start).last.get(series) ?? start - 1) + 1;
   return Math.max(jump ?? 0, next);
 }

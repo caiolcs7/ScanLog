@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import { upgradeLegacySettings } from './settings';
-import { extractStreet } from './parser';
+import { bombonaSeries } from './parser';
 import {
   defaultSettings,
   type Session,
@@ -199,12 +199,15 @@ export async function clearAllData() {
     },
   );
 }
-export function bombonaLabel(street: string, n: number) {
-  return `${street}G${String(n).padStart(2, '0')}`;
+/** Label of bombona `n` in a series: R15 → R15G01, R15S (A2) → R15G01S. */
+export function bombonaLabel(series: string, n: number) {
+  const suffix = series.endsWith('S') ? 'S' : '',
+    street = series.slice(0, series.length - suffix.length);
+  return `${street}G${String(n).padStart(2, '0')}${suffix}`;
 }
 /**
- * Automatic bombonas are numbered per street in reading order (R14G01,
- * R14G02…). A bombona whose first record has `galaoJump` starts a new run
+ * Automatic bombonas are numbered per street and floor series in reading
+ * order (R14G01, R14G02…; A2 addresses form their own series R14G01S…). A bombona whose first record has `galaoJump` starts a new run
  * from that number (G05 → G20, G21…). Removing records keeps runs contiguous.
  */
 export function bombonaNumbers(rows: InventoryRecord[], start = 1) {
@@ -212,10 +215,10 @@ export function bombonaNumbers(rows: InventoryRecord[], start = 1) {
     last = new Map<string, number>();
   for (const row of rows) {
     if (!row.galaoGroup || groups.has(row.galaoGroup)) continue;
-    const street = extractStreet(row.address),
-      n = Math.max(row.galaoJump ?? 0, (last.get(street) ?? start - 1) + 1);
+    const series = bombonaSeries(row.address),
+      n = Math.max(row.galaoJump ?? 0, (last.get(series) ?? start - 1) + 1);
     groups.set(row.galaoGroup, n);
-    last.set(street, n);
+    last.set(series, n);
   }
   return { groups, last };
 }
@@ -229,7 +232,7 @@ export async function renumberBombonas(sessionId: string) {
   for (const row of rows) {
     if (!row.galaoGroup) continue;
     const galao = bombonaLabel(
-      extractStreet(row.address),
+      bombonaSeries(row.address),
       groups.get(row.galaoGroup)!,
     );
     if (row.galao !== galao) await db.records.update(row.id, { galao });

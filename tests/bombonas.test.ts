@@ -120,4 +120,39 @@ describe('automatic bombonas', () => {
       ['ITA004', 'R15G21'],
     ]);
   });
+  it('suffixes upper-floor (A2) bombonas with S and numbers them apart from A1', async () => {
+    const s = await createSession('Andar A2', 'fixed');
+    await processScan(s.id, 'R15A1C01DP02', 'hid', settings);
+    await processScan(s.id, 'ITA001', 'hid', settings);
+    await processScan(s.id, 'ITA002', 'hid', settings);
+    await processScan(s.id, 'R15A2C01DP02', 'hid', settings, {
+      sessionId: s.id,
+      raw: 'R15A2C01DP02',
+      source: 'hid',
+      from: 'R15A1C01DP02',
+      to: 'R15A2C01DP02',
+      mode: 'fixed',
+      pending: null,
+    });
+    await processScan(s.id, 'ITB001', 'hid', settings);
+    await processScan(s.id, 'ITB002', 'hid', settings, undefined, {
+      sameGalao: true,
+    });
+    await processScan(s.id, 'ITB003', 'hid', settings);
+    expect(await rows(s.id)).toEqual([
+      ['ITA001', 'R15G01'],
+      ['ITA002', 'R15G02'],
+      ['ITB001', 'R15G01S'],
+      ['ITB002', 'R15G01S'],
+      ['ITB003', 'R15G02S'],
+    ]);
+    const first = (await db.records.toArray()).find(
+      (r) => r.code === 'ITB001',
+    )!;
+    await removeRecords(s.id, [first.id]);
+    expect((await rows(s.id)).slice(2)).toEqual([
+      ['ITB002', 'R15G01S'],
+      ['ITB003', 'R15G02S'],
+    ]);
+  });
 });
