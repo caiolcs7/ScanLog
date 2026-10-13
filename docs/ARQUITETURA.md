@@ -50,4 +50,4 @@ Sessões com `weighted: true` (aba Com peso) guardam `weight` em gramas por regi
 
 ## Identificação de produtos sem código
 
-A aba Identificação guarda lotes (`lots`) e produtos (`finds`) no schema v8. Cada produto tem de 1 a 4 fotos JPEG reduzidas a 1600 px, endereço opcional (digitado ou lido pelo scanner), bombona, peso em gramas e observação. "Salvar e próximo" mantém endereço e bombona. A exportação gera um Word (.docx, `docx` carregado sob demanda) com as fotos de cada item e o campo `CODIGO : ` para o setor responsável preencher e devolver; no celular, o arquivo pode ser compartilhado direto.
+A aba Identificação guarda lotes (`lots`) e produtos (`finds`) no schema v8. Cada produto tem de 1 a 4 fotos JPEG reduzidas a 1600 px, endereço opcional (digitado ou lido pelo scanner), bombona, peso em gramas e observação. "Salvar e próximo" mantém endereço e bombona. A exportação gera um Word (.docx, `docx` carregado sob demanda) com 2 itens por página (fotos lado a lado) e o campo `CODIGO : ` para o setor responsável preencher e devolver; no celular, o arquivo pode ser compartilhado direto.

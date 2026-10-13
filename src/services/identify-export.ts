@@ -73,16 +73,17 @@ async function image(photo: FindPhoto, box: { w: number; h: number }) {
   });
 }
 function field(label: string, value: string) {
-  return new Paragraph({
-    keepNext: true,
-    spacing: { after: 40 },
-    children: [
-      text(`${label}: `, { color: MUTED, size: 18 }),
-      text(value || '—', { bold: true }),
-    ],
-  });
+  return [
+    text(`${label}: `, { color: MUTED, size: 18 }),
+    text(`${value || '—'}     `, { bold: true }),
+  ];
 }
+/** Altura máxima das fotos: mantém 2 itens por página A4. */
+const PHOTO_H = 280;
 async function itemTable(item: FindItem, index: number) {
+  // Uma coluna por foto: todas as fotos do item ficam lado a lado.
+  const columns = Math.max(item.photos.length, 1),
+    photoW = Math.floor(CONTENT_TWIPS / 15 / columns) - 14;
   const rows: TableRow[] = [
     new TableRow({
       cantSplit: true,
@@ -105,7 +106,7 @@ async function itemTable(item: FindItem, index: number) {
             }),
           ],
           {
-            columnSpan: 2,
+            columnSpan: columns,
             shading: { type: ShadingType.CLEAR, color: 'auto', fill: BRAND },
           },
         ),
@@ -114,44 +115,35 @@ async function itemTable(item: FindItem, index: number) {
     new TableRow({
       cantSplit: true,
       children: [
-        cell([
-          field('Endereço', item.address ?? ''),
-          field('Bombona', item.bombona ?? ''),
-        ]),
-        cell([
-          field('Peso', item.weight ? formatKg(item.weight) : ''),
-          ...(item.note ? [field('Obs.', item.note)] : []),
-        ]),
+        cell(
+          [
+            new Paragraph({
+              keepNext: true,
+              children: [
+                ...field('Endereço', item.address ?? ''),
+                ...field('Bombona', item.bombona ?? ''),
+                ...field('Peso', item.weight ? formatKg(item.weight) : ''),
+                ...(item.note ? field('Obs.', item.note) : []),
+              ],
+            }),
+          ],
+          { columnSpan: columns },
+        ),
       ],
     }),
-  ];
-  const single = item.photos.length === 1;
-  for (let i = 0; i < item.photos.length; i += 2) {
-    const pair = item.photos.slice(i, i + 2);
-    rows.push(
-      new TableRow({
-        cantSplit: true,
-        children: single
-          ? [
-              cell([await image(pair[0], { w: 440, h: 330 })], {
-                columnSpan: 2,
-              }),
-            ]
-          : [
-              cell([await image(pair[0], { w: 300, h: 260 })]),
-              cell(
-                pair[1]
-                  ? [await image(pair[1], { w: 300, h: 260 })]
-                  : [new Paragraph('')],
-              ),
-            ],
-      }),
-    );
-  }
-  rows.push(
     new TableRow({
       cantSplit: true,
-      height: { value: 620, rule: 'atLeast' },
+      children: await Promise.all(
+        item.photos.map(async (photo) =>
+          cell([await image(photo, { w: photoW, h: PHOTO_H })], {
+            margins: { top: 60, bottom: 60, left: 60, right: 60 },
+          }),
+        ),
+      ),
+    }),
+    new TableRow({
+      cantSplit: true,
+      height: { value: 720, rule: 'atLeast' },
       children: [
         cell(
           [
@@ -161,7 +153,7 @@ async function itemTable(item: FindItem, index: number) {
             }),
           ],
           {
-            columnSpan: 2,
+            columnSpan: columns,
             shading: { type: ShadingType.CLEAR, color: 'auto', fill: FILL },
             borders: {
               ...borders,
@@ -171,10 +163,12 @@ async function itemTable(item: FindItem, index: number) {
         ),
       ],
     }),
-  );
+  ];
   return new Table({
     width: { size: CONTENT_TWIPS, type: WidthType.DXA },
-    columnWidths: [CONTENT_TWIPS / 2, CONTENT_TWIPS / 2],
+    columnWidths: Array.from({ length: columns }, () =>
+      Math.floor(CONTENT_TWIPS / columns),
+    ),
     rows,
   });
 }
@@ -219,9 +213,13 @@ export async function createFindDocument(lot: FindLot, items: FindItem[]) {
       ],
     }),
   ];
+  // 2 itens por página: quebra antes do 3º, 5º, 7º…
   for (const [index, item] of items.entries()) {
+    if (index && index % 2 === 0)
+      body.push(new Paragraph({ pageBreakBefore: true, children: [] }));
+    else if (index)
+      body.push(new Paragraph({ spacing: { after: 280 }, children: [] }));
     body.push(await itemTable(item, index));
-    body.push(new Paragraph({ spacing: { after: 240 }, children: [] }));
   }
   const doc = new Document({
     creator: 'ScanLog',
