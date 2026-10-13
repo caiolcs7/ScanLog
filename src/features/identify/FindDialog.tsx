@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Camera,
   Container,
@@ -10,17 +10,21 @@ import {
   X,
 } from 'lucide-react';
 import { Modal, errorMessage, useNotice } from '../../components/ui';
-import type { FindItem, Settings } from '../../core/models';
-import {
-  MAX_PHOTOS,
-  addFind,
-  updateFind,
-  type FindDraft,
-} from '../../core/identify';
+import type { Settings } from '../../core/models';
+import { MAX_PHOTOS } from '../../core/identify';
 import { normalizeGalao, parseScan } from '../../core/parser';
 import { formatKg, parseGrams } from '../../core/weight';
-import { compressPhoto } from '../../services/photo';
+import { compressPhoto, makeThumbnail } from '../../services/photo';
+import {
+  photoPath,
+  queueItem,
+  thumbPath,
+  type DraftPhoto,
+} from '../../cloud/outbox';
+import { useBlobUrls, usePhotoUrls } from '../../cloud/hooks';
+import type { ItemView } from './items';
 import { ScannerPanel } from '../scanner/ScannerPanel';
+import { PhotoCapture } from './PhotoCapture';
 
 /** Cadastro de um produto sem código: fotos, endereço opcional, bombona e peso. */
 export function FindDialog({
@@ -32,48 +36,51 @@ export function FindDialog({
   onClose,
 }: {
   lotId: string;
-  item: FindItem | null;
+  item: ItemView | null;
   label: string;
   /** Último item salvo: endereço e bombona costumam se repetir. */
-  previous?: FindItem;
+  previous?: ItemView;
   settings: Settings;
   onClose: () => void;
 }) {
   const base = item ?? previous;
-  const [photos, setPhotos] = useState(item?.photos ?? []),
+  const [photos, setPhotos] = useState<DraftPhoto[]>(item?.draftPhotos ?? []),
     [withAddress, setWithAddress] = useState(!!base?.address),
     [address, setAddress] = useState(base?.address ?? ''),
     [bombona, setBombona] = useState(base?.bombona ?? ''),
     [weight, setWeight] = useState(
-      item?.weight ? String(item.weight).replace('.', ',') : '',
+      item?.weight_g ? String(item.weight_g).replace('.', ',') : '',
     ),
     [note, setNote] = useState(item?.note ?? ''),
     [reading, setReading] = useState(false),
+    [shooting, setShooting] = useState(false),
     [processing, setProcessing] = useState(0),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
-    [saved, setSaved] = useState(0);
+    [saved, setSaved] = useState(0),
+    [itemId, setItemId] = useState(item?.id ?? crypto.randomUUID());
   const camera = useRef<HTMLInputElement>(null),
     gallery = useRef<HTMLInputElement>(null),
     notice = useNotice();
-  const urls = useMemo(
-    () => photos.map((p) => URL.createObjectURL(p.blob)),
-    [photos],
-  );
-  useEffect(() => () => urls.forEach((u) => URL.revokeObjectURL(u)), [urls]);
+  const blobs = useMemo(() => photos.map((p) => p.blob), [photos]);
+  const local = useBlobUrls(blobs),
+    remote = usePhotoUrls(photos.filter((p) => !p.blob).map((p) => p.path));
+  const urls = photos.map((p, i) => local[i] || remote[p.path] || '');
   const grams = parseGrams(weight),
     weightInvalid = weight.trim() !== '' && grams === null,
     free = MAX_PHOTOS - photos.length - processing;
 
-  async function addFiles(files: FileList | null) {
-    const list = [...(files ?? [])].slice(0, Math.max(0, free));
+  async function addBlobs(files: Blob[]) {
+    const list = files.slice(0, Math.max(0, free));
     if (!list.length) return;
     setProcessing((n) => n + list.length);
     for (const file of list) {
       try {
         const photo = await compressPhoto(file);
         setPhotos((current) =>
-          current.length < MAX_PHOTOS ? [...current, photo] : current,
+          current.length < MAX_PHOTOS
+            ? [...current, { ...photo, path: photoPath(lotId, itemId) }]
+            : current,
         );
       } catch (e) {
         notice(errorMessage(e), 'error');
@@ -82,28 +89,44 @@ export function FindDialog({
       }
     }
   }
-  function draft(): FindDraft {
-    const cleanAddress = withAddress ? address.trim().toUpperCase() : '';
-    return {
-      photos,
-      address: cleanAddress || undefined,
-      bombona: normalizeGalao(bombona) || undefined,
-      weight: grams ?? undefined,
-      note: note.trim() || undefined,
-    };
-  }
   async function save(next: boolean) {
     setError('');
     setBusy(true);
     try {
-      const data = draft();
-      if (item) await updateFind(item, data);
-      else await addFind(lotId, data);
+      if (!photos.length) throw new Error('Tire ao menos uma foto.');
+      const original = item?.draftPhotos ?? [];
+      const kept = new Set(photos.map((p) => p.path));
+      const removePaths = original
+        .map((p) => p.path)
+        .filter((p) => !kept.has(p));
+      // Miniatura nova só quando a foto principal mudou.
+      let thumb: { path: string; blob: Blob } | undefined;
+      if (photos[0].blob && photos[0].path !== original[0]?.path) {
+        const blob = await makeThumbnail(photos[0].blob);
+        thumb = { path: thumbPath(lotId, itemId, blob), blob };
+        if (item?.thumb_path) removePaths.push(item.thumb_path);
+      }
+      const cleanAddress = withAddress ? address.trim().toUpperCase() : '';
+      await queueItem({
+        lotId,
+        itemId,
+        isNew: !item,
+        fields: {
+          address: cleanAddress || null,
+          bombona: normalizeGalao(bombona) || null,
+          weight_g: grams ?? null,
+          note: note.trim() || null,
+        },
+        photos,
+        thumb,
+        removePaths,
+      });
       if (next) {
         // Mesmo endereço e bombona: o próximo produto costuma estar ao lado.
         setPhotos([]);
         setWeight('');
         setNote('');
+        setItemId(crypto.randomUUID());
         setSaved((n) => n + 1);
         notice('Produto salvo. Pode fotografar o próximo.', 'success');
       } else onClose();
@@ -135,9 +158,13 @@ export function FindDialog({
             </span>
           </legend>
           <div className="photo-grid">
-            {urls.map((url, i) => (
-              <figure className="photo-slot filled" key={url}>
-                <img src={url} alt={`Foto ${i + 1}`} />
+            {photos.map((photo, i) => (
+              <figure className="photo-slot filled" key={photo.path}>
+                {urls[i] ? (
+                  <img src={urls[i]} alt={`Foto ${i + 1}`} />
+                ) : (
+                  <span className="photo-slot__wait" />
+                )}
                 {i === 0 && <figcaption>Principal</figcaption>}
                 <button
                   type="button"
@@ -158,7 +185,7 @@ export function FindDialog({
               <button
                 type="button"
                 className="photo-slot add"
-                onClick={() => camera.current?.click()}
+                onClick={() => setShooting(true)}
               >
                 <Camera />
                 <span>{photos.length ? 'Outro ângulo' : 'Tirar foto'}</span>
@@ -181,6 +208,7 @@ export function FindDialog({
               Galeria
             </button>
           </div>
+          {/* Último recurso, se o navegador não liberar a câmera no app. */}
           <input
             ref={camera}
             className="sr-only"
@@ -189,7 +217,7 @@ export function FindDialog({
             capture="environment"
             tabIndex={-1}
             onChange={(e) => {
-              void addFiles(e.target.files);
+              void addBlobs([...(e.target.files ?? [])]);
               e.target.value = '';
             }}
           />
@@ -201,7 +229,7 @@ export function FindDialog({
             multiple
             tabIndex={-1}
             onChange={(e) => {
-              void addFiles(e.target.files);
+              void addBlobs([...(e.target.files ?? [])]);
               e.target.value = '';
             }}
           />
@@ -287,7 +315,7 @@ export function FindDialog({
                 {weightInvalid
                   ? 'Peso inválido, ex.: 0,24'
                   : grams
-                    ? `No documento: ${formatKg(grams)}`
+                    ? `Na planilha: ${formatKg(grams)}`
                     : 'Em gramas.'}
               </small>
             </label>
@@ -329,6 +357,17 @@ export function FindDialog({
           </button>
         </div>
       </form>
+      {shooting && (
+        <PhotoCapture
+          remaining={free}
+          onPhoto={(blob) => void addBlobs([blob])}
+          onClose={() => setShooting(false)}
+          onFallback={() => {
+            setShooting(false);
+            camera.current?.click();
+          }}
+        />
+      )}
       {reading && (
         <Modal wide title="Ler endereço" onClose={() => setReading(false)}>
           <ScannerPanel

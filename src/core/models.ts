@@ -151,4 +151,6 @@ export type FindItem = {
   /** Peso unitário em gramas. */
   weight?: number;
   note?: string;
+  /** Código já preenchido pela estrutura (documento devolvido). */
+  code?: string;
 };

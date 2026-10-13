@@ -48,6 +48,25 @@ Não foi implementada importação de XLSX, explicitamente opcional no pedido; r
 
 Sessões com `weighted: true` (aba Com peso) guardam `weight` em gramas por registro, aceitando valores abaixo de 1 g. Ao ler um produto, o peso é preenchido por `src/data/weights.json`, gerado com `node scripts/weights.mjs <caminho do localizador-de-materiais>` a partir dos descritivos com "PESO"; sem peso conhecido, o app pede o valor. O peso pode ser alterado na leitura e na lista de registros. A exportação acrescenta a coluna Peso em kg (10 g → 0,010 kg; 0,24 g → 0,00024 kg), como número no XLSX.
 
-## Identificação de produtos sem código
+## Identificação de produtos sem código (nuvem)
 
-A aba Identificação guarda lotes (`lots`) e produtos (`finds`) no schema v8. Cada produto tem de 1 a 4 fotos JPEG reduzidas a 1600 px, endereço opcional (digitado ou lido pelo scanner), bombona, peso em gramas e observação. "Salvar e próximo" mantém endereço e bombona. A exportação gera um Word (.docx, `docx` carregado sob demanda) com 2 itens por página (fotos lado a lado) e o campo `CODIGO : ` para o setor responsável preencher e devolver; no celular, o arquivo pode ser compartilhado direto.
+Única parte que sai do aparelho. Supabase (Postgres, Auth e Storage) guarda `lots` e `items`; levantamentos continuam só no IndexedDB. O cliente `@supabase/supabase-js` é carregado sob demanda ao abrir a Identificação, e não há Realtime: as telas releem ao abrir, ao voltar para o primeiro plano, ao voltar a conexão e após cada alteração.
+
+**Acesso.** Uma conta por setor, com o papel em `app_metadata.role`, definido por gatilho a partir do e-mail. `items_guard` e `lots_guard` garantem no banco: só o almoxarifado cadastra, edita, envia e confirma; a estrutura só grava código, observação e status `codificado`/`sem_codigo`; item confirmado não muda; a numeração do item vem do servidor. RLS esconde lotes em cadastro da estrutura. O nome de quem usa o aparelho vai em `created_by`, `coded_by` e `confirmed_by`.
+
+**Fluxo.** `rascunho` → `enviado` → `codificado` → `confirmado`, recalculado por `lots_refresh` a partir dos itens. Ao confirmar, os originais (`originais/{lote}/{item}/…jpg`, 1600 px) são apagados e fica a miniatura (`miniaturas/…webp`, ≤ 20 KB, gerada no aparelho no cadastro). `thumb_expires_at` = confirmação + 150 dias. A Edge Function `limpeza-fotos`, chamada todo dia às 06:00 UTC por `pg_cron` + `pg_net` com um segredo do Vault, apaga miniaturas vencidas e originais que tenham ficado para trás.
+
+**Fila offline.** Cadastros e edições do almoxarifado vão primeiro para a tabela Dexie `outbox` (schema v9), com as fotos em Blob, e sobem em ordem estrita (o lote antes dos itens). Uma falha para a fila e tenta de novo só com o app na tela. Itens pendentes aparecem na lista com “Enviando”. Lotes da versão anterior (tabelas `lots`/`finds`) podem ser enviados para a nuvem pelo aviso na lista.
+
+**Fotos.** `PhotoCapture` abre a câmera com `getUserMedia` dentro do app e usa `ImageCapture.takePhoto()` ou um quadro do vídeo; a foto nunca passa pelo app de câmera do sistema, que costuma gravar na galeria. O `<input capture>` fica só como último recurso. A câmera é liberada ao fechar ou ocultar o app.
+
+**Exportação.** `identify-xlsx.ts` repete as colunas do levantamento (Código do Produto, Endereço, Galão, Peso em kg numérico) e acrescenta Item, Lote, Status, datas e observação, por lote ou por período. O Word (`identify-export.ts`, 2 itens por página) segue como alternativa e já traz o código quando preenchido.
+
+## Consumo de bateria
+
+- Captura por botão: sem leitura pedida, nenhum quadro é processado; o laço só acorda com o toque.
+- A câmera desliga após 90 s sem leitura, e a tela volta a apagar após 2 min sem atividade (Wake Lock).
+- Com o detector nativo, o ZXing WASM roda só a cada 4 quadros vazios, e a frequência cai para 250 ms após várias tentativas sem etiqueta.
+- O OCR do descritivo é encerrado após 1 min sem uso e ao sair da leitura.
+- Animações infinitas da logo e dos indicadores rodam uma vez; o desfoque (`backdrop-filter`) sobre o vídeo e os modais foi trocado por fundo sólido.
+- A busca por nova versão roda ao voltar o app para a tela, sem timer de 15 min.

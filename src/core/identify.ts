@@ -1,80 +1,59 @@
 import { db } from './database';
-import type { FindItem, FindLot } from './models';
+import { photoPath, queueItem, queueLot, thumbPath } from '../cloud/outbox';
+import { makeThumbnail } from '../services/photo';
 
 export const MAX_PHOTOS = 4;
-export type FindDraft = Omit<FindItem, 'id' | 'lotId' | 'order' | 'createdAt'>;
 
-export async function createLot(name: string) {
-  const clean = name.trim();
-  if (!clean || clean.length > 100)
-    throw new Error('Informe um nome com até 100 caracteres.');
-  const now = Date.now();
-  const lot: FindLot = {
-    id: crypto.randomUUID(),
-    name: clean,
-    createdAt: now,
-    updatedAt: now,
-    count: 0,
-    nextOrder: 1,
-  };
-  await db.lots.add(lot);
-  return lot;
-}
-export async function renameLot(id: string, name: string) {
-  const clean = name.trim();
-  if (!clean || clean.length > 100)
-    throw new Error('Informe um nome com até 100 caracteres.');
-  await db.lots.update(id, { name: clean, updatedAt: Date.now() });
-}
-export async function deleteLot(id: string) {
-  await db.transaction('rw', db.lots, db.finds, async () => {
-    await db.finds.where('lotId').equals(id).delete();
-    await db.lots.delete(id);
-  });
-}
-function check(draft: FindDraft) {
-  if (!draft.photos.length) throw new Error('Tire ao menos uma foto.');
-  if (draft.photos.length > MAX_PHOTOS)
-    throw new Error(`Até ${MAX_PHOTOS} fotos por produto.`);
-}
-export async function addFind(lotId: string, draft: FindDraft) {
-  check(draft);
-  return db.transaction('rw', db.lots, db.finds, async () => {
-    const lot = await db.lots.get(lotId);
-    if (!lot) throw new Error('Lote não encontrado.');
-    const item: FindItem = {
-      ...draft,
-      id: crypto.randomUUID(),
-      lotId,
-      order: lot.nextOrder,
-      createdAt: Date.now(),
-    };
-    await db.finds.add(item);
-    await db.lots.update(lotId, {
-      count: lot.count + 1,
-      nextOrder: lot.nextOrder + 1,
-      updatedAt: Date.now(),
-    });
-    return item;
-  });
-}
-export async function updateFind(item: FindItem, draft: FindDraft) {
-  check(draft);
-  await db.transaction('rw', db.lots, db.finds, async () => {
-    await db.finds.put({ ...item, ...draft });
-    await db.lots.update(item.lotId, { updatedAt: Date.now() });
-  });
-}
-export async function removeFind(item: FindItem) {
-  await db.transaction('rw', db.lots, db.finds, async () => {
-    await db.finds.delete(item.id);
-    await db.lots.update(item.lotId, {
-      count: await db.finds.where('lotId').equals(item.lotId).count(),
-      updatedAt: Date.now(),
-    });
-  });
-}
 /** Item 7 → "07"; mantém largura fixa na lista e no documento. */
 export function itemLabel(order: number) {
   return String(order).padStart(2, '0');
+}
+/** Lotes da versão anterior, guardados só neste aparelho. */
+export function countLocalLots() {
+  return db.lots.count();
+}
+/**
+ * Leva os lotes locais para a fila de envio da nuvem. Cada lote só é
+ * apagado do aparelho depois que todos os seus itens estão na fila (que
+ * também fica no aparelho e envia sozinha quando houver sinal).
+ */
+export async function migrateLocalLots() {
+  const lots = await db.lots.orderBy('updatedAt').toArray();
+  for (const lot of lots) {
+    await queueLot(lot.id, lot.name);
+    const finds = await db.finds
+      .where('[lotId+order]')
+      .between([lot.id, 0], [lot.id, Infinity])
+      .toArray();
+    for (const find of finds) {
+      const thumb = find.photos[0]
+        ? await makeThumbnail(find.photos[0].blob)
+        : undefined;
+      await queueItem({
+        lotId: lot.id,
+        itemId: find.id,
+        isNew: true,
+        fields: {
+          address: find.address ?? null,
+          bombona: find.bombona ?? null,
+          weight_g: find.weight ?? null,
+          note: find.note ?? null,
+        },
+        photos: find.photos.map((p) => ({
+          ...p,
+          path: photoPath(lot.id, find.id),
+        })),
+        thumb: thumb && {
+          path: thumbPath(lot.id, find.id, thumb),
+          blob: thumb,
+        },
+        removePaths: [],
+      });
+    }
+    await db.transaction('rw', db.lots, db.finds, async () => {
+      await db.finds.where('lotId').equals(lot.id).delete();
+      await db.lots.delete(lot.id);
+    });
+  }
+  return lots.length;
 }

@@ -44,6 +44,8 @@ export class ScannerService {
   private nativeErrors = 0;
   private missedFrames = 0;
   private track: MediaStreamTrack | undefined;
+  /** Laço parado esperando o toque em Ler código (modo por botão). */
+  private wake: (() => void) | undefined;
   private state: CameraState = {
     running: false,
     message: 'Câmera pausada',
@@ -58,6 +60,12 @@ export class ScannerService {
   setCapture(mode: Settings['cameraCapture']) {
     this.capture = mode;
     this.cancelRead();
+    if (mode === 'continuous') this.resume();
+  }
+  private resume() {
+    const wake = this.wake;
+    this.wake = undefined;
+    wake?.();
   }
   /** When enabled, each accepted read hands over a transient frame copy for OCR. */
   setFrameCapture(enabled: boolean) {
@@ -78,6 +86,7 @@ export class ScannerService {
   requestRead() {
     if (!this.state.running || this.capture !== 'button' || this.until) return;
     this.attempt++;
+    this.missedFrames = 0;
     this.until = Date.now() + 5000;
     this.publish({
       armed: true,
@@ -90,6 +99,7 @@ export class ScannerService {
         ),
       5000,
     );
+    this.resume();
   }
   cancelRead(message = 'Enquadre a etiqueta e toque em Ler código.') {
     this.attempt++;
@@ -222,7 +232,11 @@ export class ScannerService {
         if (JSON.stringify(region) !== JSON.stringify(this.state.region))
           this.publish({ region });
         if (this.capture === 'button' && !this.until) {
-          this.timer = setTimeout(() => void tick(), 160);
+          // Sem leitura pedida, nenhum quadro é processado: o laço dorme até
+          // o próximo toque (a mira segue o vídeo pelo ResizeObserver).
+          this.wake = () => {
+            if (generation === this.generation) void tick();
+          };
           return;
         }
         const attempt = this.attempt;
@@ -255,7 +269,8 @@ export class ScannerService {
             }
           }
         }
-        if (!values.length && (!this.native || this.missedFrames % 2 === 0))
+        // O WASM é o mais caro: com o detector nativo, só a cada 4 quadros vazios.
+        if (!values.length && (!this.native || this.missedFrames % 4 === 0))
           values = await this.decoder.decode(
             ctx.getImageData(0, 0, canvas.width, canvas.height),
           );
@@ -313,8 +328,12 @@ export class ScannerService {
         this.publish({ message: cameraError(error) });
         return;
       }
+      // Muito tempo sem etiqueta na mira: tenta com menos frequência.
       if (generation === this.generation)
-        this.timer = setTimeout(() => void tick(), 160);
+        this.timer = setTimeout(
+          () => void tick(),
+          this.missedFrames > 20 ? 250 : 160,
+        );
     };
     await tick();
   }
@@ -346,6 +365,7 @@ export class ScannerService {
     this.resizeObserver = undefined;
     this.cancelRead();
     this.generation++;
+    this.wake = undefined;
     clearTimeout(this.timer);
     this.decoder.stop();
     // Retain the visible-code latch across confirmation dialogs to avoid re-prompting.

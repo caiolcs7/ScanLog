@@ -1,13 +1,21 @@
 import { Component, useEffect, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { Boxes, ClipboardList, RefreshCw, ShieldCheck } from 'lucide-react';
+import {
+  Boxes,
+  Cloud,
+  ClipboardList,
+  RefreshCw,
+  ScanSearch,
+  Settings as SettingsIcon,
+  ShieldCheck,
+} from 'lucide-react';
 import { db, initializeDatabase } from '../core/database';
 import { activateWaitingUpdate } from '../services/pwa';
 import { Home } from '../features/sessions/Home';
 import { SessionPage } from '../features/sessions/SessionPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
-import { IdentifyPage } from '../features/identify/IdentifyPage';
+import { IdentifyArea } from '../features/identify/IdentifyArea';
 import { BrandLogo } from '../components/BrandLogo';
 import {
   Loading,
@@ -46,8 +54,8 @@ function Application() {
       if (!registration) return;
       // Installed PWAs can stay open for days: look for new versions
       // periodically and whenever the app returns to the foreground.
+      // Sem timer: procura versão nova só quando o app volta para a tela.
       const check = () => void registration.update().catch(() => {});
-      setInterval(check, 15 * 60 * 1000);
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') check();
       });
@@ -70,7 +78,9 @@ function Application() {
         notice(errorMessage(error), 'error');
       }
     });
-  const scanning = /^\/session\/[^/]+\/scanner$/.test(route);
+  // Leitura ou cadastro em andamento: a atualização espera o botão.
+  const scanning =
+    /^\/session\/[^/]+\/scanner$/.test(route) || /^\/identifica/.test(route);
   useEffect(() => {
     // Outside a scanning screen nothing is in flight, so update right away.
     if (needRefresh && ready && !scanning && !updating) applyUpdate();
@@ -126,7 +136,12 @@ function Application() {
     return () => media.removeEventListener('change', apply);
   }, [settings?.theme]);
   const match = /^\/session\/([^/]+)\/(scanner|records)$/.exec(route),
-    lot = /^\/identify\/([^/]+)$/.exec(route);
+    identify = /^\/(?:identificacao|identify)(?:\/([^/?]+))?/.exec(route);
+  const area = identify
+    ? 'identify'
+    : route === '/settings'
+      ? 'settings'
+      : 'surveys';
   if (error)
     return (
       <main className="fatal-error">
@@ -155,36 +170,35 @@ function Application() {
         >
           <BrandLogo />
         </button>
-        <nav aria-label="Navegação principal">
-          <button
-            aria-label="Levantamentos"
-            aria-current={route !== '/settings' ? 'page' : undefined}
-            className={`nav-survey ${route !== '/settings' ? 'nav-active' : ''}`}
-            onClick={() => navigate('/')}
-          >
-            <span className="nav-survey__text">Levantamentos</span>
-            <span className="nav-survey__orb" aria-hidden="true">
-              <ClipboardList />
-            </span>
-          </button>
-          <button
-            aria-label="Configurações"
-            aria-current={route === '/settings' ? 'page' : undefined}
-            className={`nav-settings ${route === '/settings' ? 'nav-active' : ''}`}
-            onClick={() => navigate('/settings')}
-          >
-            <span className="nav-settings__content">
-              <svg
-                className="nav-settings__icon"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path d="M12 2L9.09 5H4v4.09L1 12l3 2.91V19h5.09L12 22l2.91-3H20v-5.09L23 12l-3-2.91V5h-5.09L12 2zm0 4.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11zm0 2a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" />
-              </svg>
-              <span className="nav-settings__text">Configurações</span>
-            </span>
-          </button>
+        <nav className="main-nav" aria-label="Navegação principal">
+          {(
+            [
+              ['surveys', '/', 'Levantamentos', <ClipboardList key="i" />],
+              [
+                'identify',
+                '/identificacao',
+                'Identificação',
+                <ScanSearch key="i" />,
+              ],
+              [
+                'settings',
+                '/settings',
+                'Configurações',
+                <SettingsIcon key="i" />,
+              ],
+            ] as const
+          ).map(([key, path, label, icon]) => (
+            <button
+              key={key}
+              aria-label={label}
+              aria-current={area === key ? 'page' : undefined}
+              className={area === key ? 'nav-active' : ''}
+              onClick={() => navigate(path)}
+            >
+              {icon}
+              <span>{label}</span>
+            </button>
+          ))}
         </nav>
       </header>
       {needRefresh && (
@@ -223,8 +237,8 @@ function Application() {
             view={match[2]}
             settings={settings}
           />
-        ) : lot ? (
-          <IdentifyPage key={lot[1]} id={lot[1]} settings={settings} />
+        ) : identify ? (
+          <IdentifyArea lotId={identify[1]} settings={settings} />
         ) : route === '/settings' ? (
           <SettingsPage key={settings.id} settings={settings} />
         ) : (
@@ -232,10 +246,17 @@ function Application() {
         )}
       </div>
       <div className="app-bottom">
-        <span>
-          <ShieldCheck />
-          Dados somente neste dispositivo
-        </span>
+        {area === 'identify' ? (
+          <span>
+            <Cloud />
+            Identificação compartilhada na nuvem
+          </span>
+        ) : (
+          <span>
+            <ShieldCheck />
+            Levantamentos salvos só neste aparelho
+          </span>
+        )}
         <span>
           {offlineReady || cached
             ? 'Pronto para uso offline'

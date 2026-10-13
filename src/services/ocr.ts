@@ -1,8 +1,21 @@
 import type { Worker } from 'tesseract.js';
 import { extractDescription } from '../core/description';
 
-let worker: Promise<Worker> | null = null;
+let worker: Promise<Worker> | null = null,
+  idle: ReturnType<typeof setTimeout> | undefined;
+/** O motor de OCR é pesado: encerra após 1 minuto sem uso. */
+function scheduleRelease() {
+  clearTimeout(idle);
+  idle = setTimeout(() => void releaseOcr(), 60_000);
+}
+export async function releaseOcr() {
+  clearTimeout(idle);
+  const current = worker;
+  worker = null;
+  await (await current?.catch(() => null))?.terminate();
+}
 function getWorker() {
+  scheduleRelease();
   // Loaded on demand: the OCR engine and Portuguese model are only fetched
   // when the operator enables description reading.
   worker ??= import('tesseract.js').then(({ createWorker }) =>
@@ -27,6 +40,7 @@ export async function readDescription(
     return extractDescription(data.text, code);
   } finally {
     discardFrame(frame);
+    scheduleRelease();
   }
 }
 export function discardFrame(frame?: HTMLCanvasElement) {

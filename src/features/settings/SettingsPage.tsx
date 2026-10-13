@@ -9,7 +9,11 @@ import {
   ScanLine,
   Database,
   SlidersHorizontal,
+  LogOut,
+  ScanSearch,
 } from 'lucide-react';
+import { useCloudAuth, signOut } from '../../cloud/auth';
+import { sectors } from '../../cloud/config';
 import { clearAllData, db } from '../../core/database';
 import {
   defaultSettings,
@@ -341,6 +345,7 @@ export function SettingsPage({ settings }: { settings: Settings }) {
           </button>
         </div>
       </form>
+      <IdentifyAccount />
       <section className="settings-section">
         <div className="settings-section-title">
           <Database />
@@ -433,8 +438,10 @@ export function SettingsPage({ settings }: { settings: Settings }) {
         <div>
           <h2>Privacidade por padrão</h2>
           <p>
-            Todos os dados são processados localmente neste dispositivo. As
-            imagens da câmera e os registros não são enviados para servidores.
+            Os levantamentos ficam só neste aparelho e as imagens do scanner não
+            saem dele. Apenas a Identificação (fotos e dados dos produtos sem
+            código) é guardada na nuvem, para os dois setores trabalharem
+            juntos.
           </p>
           <p className="helper">
             Limpar os dados do navegador ou desinstalar pode remover os
@@ -525,5 +532,33 @@ function Toggle({
         onChange={(e) => onChange(e.target.checked)}
       />
     </label>
+  );
+}
+
+/** Setor conectado na Identificação, com a opção de sair. */
+function IdentifyAccount() {
+  const auth = useCloudAuth();
+  const task = useTask();
+  if (auth.status !== 'in') return null;
+  return (
+    <section className="settings-section">
+      <div className="settings-section-title">
+        <ScanSearch />
+        <div>
+          <h2>Identificação</h2>
+          <p>Acesso compartilhado com o outro setor.</p>
+        </div>
+      </div>
+      <div className="settings-fields">
+        <p>
+          Conectado como <strong>{sectors[auth.sector].label}</strong> ·{' '}
+          {auth.name}
+        </p>
+        <button onClick={() => void task(signOut)}>
+          <LogOut />
+          Sair da Identificação
+        </button>
+      </div>
+    </section>
   );
 }

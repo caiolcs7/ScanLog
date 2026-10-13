@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   RotateCcw,
   Scale,
-  ScanSearch,
 } from 'lucide-react';
 import {
   createSession,
@@ -37,7 +36,6 @@ import {
   errorMessage,
 } from '../../components/ui';
 import { ExportDialog } from '../export/ExportDialog';
-import { IdentifyLots } from '../identify/IdentifyLots';
 
 export function Home({ settings }: { settings: Settings }) {
   const sessions = useLiveQuery(
@@ -48,17 +46,10 @@ export function Home({ settings }: { settings: Settings }) {
     [editing, setEditing] = useState<Session | null>(null),
     [exporting, setExporting] = useState<Session | null>(null),
     [deleting, setDeleting] = useState<Session | null>(null);
-  const lots = useLiveQuery(
-    () => db.lots.orderBy('updatedAt').reverse().toArray(),
-    [],
-  );
-  const [filter, setFilter] = useState(() =>
-      window.location.hash.includes('tab=identify') ? 'identify' : 'recent',
-    ),
+  const [filter, setFilter] = useState('recent'),
     [search, setSearch] = useState('');
   const task = useTask();
-  if (!sessions || !lots) return <Loading />;
-  const identify = filter === 'identify';
+  if (!sessions) return <Loading />;
   const filtered = sessions.filter(
     (s) =>
       (filter === 'archived'
@@ -69,25 +60,16 @@ export function Home({ settings }: { settings: Settings }) {
         .toLocaleLowerCase('pt-BR')
         .includes(search.toLocaleLowerCase('pt-BR')),
   );
-  const foundLots = lots.filter((l) =>
-    l.name
-      .toLocaleLowerCase('pt-BR')
-      .includes(search.toLocaleLowerCase('pt-BR')),
-  );
   return (
     <main className="home page">
       <div className="page-heading">
         <div>
-          <h1>{identify ? 'Identificação' : 'Levantamentos'}</h1>
-          <p>
-            {identify
-              ? 'Produtos sem código: fotografe, envie e receba o código.'
-              : 'Da etiqueta ao relatório. Tudo no seu dispositivo.'}
-          </p>
+          <h1>Levantamentos</h1>
+          <p>Da etiqueta ao relatório. Salvo só neste aparelho.</p>
         </div>
         <button className="primary new-session" onClick={() => setCreate(true)}>
           <Plus />
-          {identify ? 'Nova identificação' : 'Novo levantamento'}
+          Novo levantamento
         </button>
       </div>
       <div className="list-toolbar">
@@ -118,39 +100,25 @@ export function Home({ settings }: { settings: Settings }) {
             </span>
           </button>
           <button
-            className={identify ? 'selected' : ''}
-            onClick={() => setFilter('identify')}
-          >
-            <ScanSearch className="tab-icon" />
-            Identificação <span>{lots.length}</span>
-          </button>
-          <button
             className={filter === 'archived' ? 'selected' : ''}
             onClick={() => setFilter('archived')}
           >
             Arquivados
           </button>
         </div>
-        {(identify ? lots : sessions).length > 0 && (
+        {sessions.length > 0 && (
           <div className="search-field">
             <Search />
             <input
-              aria-label={identify ? 'Buscar lotes' : 'Buscar levantamentos'}
-              placeholder={identify ? 'Buscar lote' : 'Buscar levantamento'}
+              aria-label="Buscar levantamentos"
+              placeholder="Buscar levantamento"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
         )}
       </div>
-      {identify ? (
-        <IdentifyLots
-          lots={foundLots}
-          creating={create}
-          onCreate={() => setCreate(true)}
-          onCloseCreate={() => setCreate(false)}
-        />
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <section className="empty-state">
           <div className="empty-mark">
             <ScanLine size={48} />
@@ -309,7 +277,7 @@ export function Home({ settings }: { settings: Settings }) {
         Salvo neste navegador. Exporte um backup para guardar uma cópia em outro
         lugar.
       </footer>
-      {((create && !identify) || editing) && (
+      {(create || editing) && (
         <SessionForm
           session={editing}
           settings={settings}

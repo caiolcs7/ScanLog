@@ -16,7 +16,10 @@ import {
   type ITableCellOptions,
 } from 'docx';
 import { itemLabel } from '../core/identify';
-import type { FindItem, FindLot, FindPhoto } from '../core/models';
+import type { FindItem, FindPhoto } from '../core/models';
+
+/** Dados do lote usados no documento (lote local ou da nuvem). */
+export type DocLot = { name: string; createdAt: number };
 import { formatKg } from '../core/weight';
 
 const FONT = 'Calibri',
@@ -133,13 +136,27 @@ async function itemTable(item: FindItem, index: number) {
     }),
     new TableRow({
       cantSplit: true,
-      children: await Promise.all(
-        item.photos.map(async (photo) =>
-          cell([await image(photo, { w: photoW, h: PHOTO_H })], {
-            margins: { top: 60, bottom: 60, left: 60, right: 60 },
-          }),
-        ),
-      ),
+      children: item.photos.length
+        ? await Promise.all(
+            item.photos.map(async (photo) =>
+              cell([await image(photo, { w: photoW, h: PHOTO_H })], {
+                margins: { top: 60, bottom: 60, left: 60, right: 60 },
+              }),
+            ),
+          )
+        : [
+            cell(
+              [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    text('Foto removida após 5 meses', { color: MUTED }),
+                  ],
+                }),
+              ],
+              { margins: { top: 240, bottom: 240, left: 60, right: 60 } },
+            ),
+          ],
     }),
     new TableRow({
       cantSplit: true,
@@ -149,7 +166,10 @@ async function itemTable(item: FindItem, index: number) {
           [
             new Paragraph({
               spacing: { before: 60 },
-              children: [text('CODIGO : ', { bold: true, size: 28 })],
+              children: [
+                text('CODIGO : ', { bold: true, size: 28 }),
+                ...(item.code ? [text(item.code, { size: 28 })] : []),
+              ],
             }),
           ],
           {
@@ -173,7 +193,7 @@ async function itemTable(item: FindItem, index: number) {
   });
 }
 /** Documento Word com fotos de cada item e o campo "CODIGO : " editável. */
-export async function createFindDocument(lot: FindLot, items: FindItem[]) {
+export async function createFindDocument(lot: DocLot, items: FindItem[]) {
   const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(
     Date.now(),
   );
@@ -262,7 +282,7 @@ export async function createFindDocument(lot: FindLot, items: FindItem[]) {
   });
   return Packer.toBlob(doc);
 }
-export function findFilename(lot: FindLot) {
+export function findFilename(lot: DocLot) {
   const name = lot.name
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
