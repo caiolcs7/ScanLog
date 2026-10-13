@@ -4,7 +4,6 @@ import {
   Download,
   Save,
   ShieldCheck,
-  Trash2,
   Volume2,
   ScanLine,
   Database,
@@ -14,43 +13,24 @@ import {
 } from 'lucide-react';
 import { useCloudAuth, signOut } from '../../cloud/auth';
 import { sectors } from '../../cloud/config';
-import { clearAllData, db } from '../../core/database';
-import {
-  defaultSettings,
-  settingsSchema,
-  type Settings,
-} from '../../core/models';
-import { validateRules } from '../../core/parser';
+import { db } from '../../core/database';
+import { withFixedRules } from '../../core/settings';
+import { protectStorage } from '../../services/storage';
+import { settingsSchema, type Settings } from '../../core/models';
 import {
   createBackup,
   importBackup,
   validateBackup,
   type Backup,
 } from '../../services/backup';
-import {
-  Confirm,
-  Modal,
-  errorMessage,
-  useNotice,
-  useTask,
-} from '../../components/ui';
+import { Modal, errorMessage, useNotice, useTask } from '../../components/ui';
 
 export function SettingsPage({ settings }: { settings: Settings }) {
   const [form, setForm] = useState(() => structuredClone(settings)),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
-    [clearing, setClearing] = useState(false),
     [backup, setBackup] = useState<Backup | null>(null),
     [restoreSettings, setRestoreSettings] = useState(false);
-  const [productPatterns, setProductPatterns] = useState(
-      settings.rules.productPatterns.join('\n'),
-    ),
-    [addressPatterns, setAddressPatterns] = useState(
-      settings.rules.addressPatterns.join('\n'),
-    ),
-    [wrappers, setWrappers] = useState(
-      JSON.stringify(settings.rules.wrappers, null, 2),
-    );
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]),
     [persisted, setPersisted] = useState<boolean | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -83,30 +63,10 @@ export function SettingsPage({ settings }: { settings: Settings }) {
           setBusy(true);
           setError('');
           try {
-            const next = settingsSchema.parse({
-              ...form,
-              rules: {
-                ...form.rules,
-                productPatterns: productPatterns
-                  .split('\n')
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-                addressPatterns: addressPatterns
-                  .split('\n')
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-                wrappers: JSON.parse(wrappers),
-              },
-            });
-            validateRules(next.rules);
-            await db.settings.put(next);
+            await db.settings.put(settingsSchema.parse(withFixedRules(form)));
             notice('Configurações salvas.', 'success');
           } catch (err) {
-            setError(
-              err instanceof SyntaxError
-                ? 'Wrappers: informe uma lista JSON válida.'
-                : errorMessage(err),
-            );
+            setError(errorMessage(err));
           } finally {
             setBusy(false);
           }
@@ -270,67 +230,6 @@ export function SettingsPage({ settings }: { settings: Settings }) {
               identificadores 251/37 são limpas automaticamente. Endereços
               completos são reconhecidos pela estrutura da posição.
             </p>
-            <details className="advanced">
-              <summary>Padrões e normalização avançada</summary>
-              <p className="helper">
-                Um padrão por linha, com ^ e $. Use letras, números, classes
-                como [A-Z] e limites como &#123;3,64&#125;. Não são aceitos
-                grupos nem repetições abertas. Quando um valor também formar um
-                endereço completo, ele será tratado como endereço.
-              </p>
-              <label>
-                Padrões de produto
-                <textarea
-                  className="mono"
-                  value={productPatterns}
-                  onChange={(e) => setProductPatterns(e.target.value)}
-                  rows={3}
-                />
-              </label>
-              <label>
-                Padrões de endereço
-                <textarea
-                  className="mono"
-                  value={addressPatterns}
-                  onChange={(e) => setAddressPatterns(e.target.value)}
-                  rows={4}
-                />
-              </label>
-              <label>
-                Wrappers completos (JSON)
-                <textarea
-                  className="mono"
-                  value={wrappers}
-                  onChange={(e) => setWrappers(e.target.value)}
-                  rows={4}
-                />
-              </label>
-              <p className="helper">
-                Exemplo opcional: [&#123;"prefix":"251","suffix":"371"&#125;].
-                Só remova se o par completo envolver um único código válido e o
-                original não for válido.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setProductPatterns(
-                    defaultSettings.rules.productPatterns.join('\n'),
-                  );
-                  setAddressPatterns(
-                    defaultSettings.rules.addressPatterns.join('\n'),
-                  );
-                  setWrappers('[]');
-                }}
-              >
-                Restaurar padrões iniciais no formulário
-              </button>
-              <Toggle
-                title="Guardar leitura bruta para auditoria"
-                description="Salva o conteúdo original localmente, junto do histórico. O Excel recebe apenas valores normalizados."
-                checked={form.saveRaw}
-                onChange={(value) => change('saveRaw', value)}
-              />
-            </details>
           </div>
         </section>
         {error && (
@@ -403,34 +302,31 @@ export function SettingsPage({ settings }: { settings: Settings }) {
                 });
             }}
           />
-          <div className="storage-info">
+          <div className={`storage-info ${persisted ? 'is-safe' : ''}`}>
             <p>
               {persisted
-                ? 'Armazenamento persistente concedido pelo navegador.'
-                : 'Armazenamento local. O navegador pode liberar espaço se o dispositivo ficar cheio.'}
+                ? 'Dados protegidos: o navegador não apaga seus levantamentos para liberar espaço.'
+                : 'O navegador ainda não confirmou a proteção dos dados. Instale o ScanLog na tela inicial e mantenha backups.'}
             </p>
             {!persisted && (
               <button
                 onClick={() =>
                   void task(async () => {
-                    const granted = await navigator.storage?.persist?.();
-                    setPersisted(!!granted);
+                    const granted = await protectStorage();
+                    setPersisted(granted);
                     notice(
                       granted
-                        ? 'Armazenamento persistente ativado.'
-                        : 'O navegador decide essa permissão automaticamente. Mantenha backups regulares.',
+                        ? 'Proteção dos dados ativada.'
+                        : 'O navegador decide essa permissão. Instale o app e exporte backups regulares.',
                     );
                   })
                 }
               >
-                Solicitar armazenamento persistente
+                <ShieldCheck />
+                Proteger dados neste aparelho
               </button>
             )}
           </div>
-          <button className="text-danger" onClick={() => setClearing(true)}>
-            <Trash2 />
-            Limpar todos os dados
-          </button>
         </div>
       </section>
       <section className="privacy-note">
@@ -444,24 +340,12 @@ export function SettingsPage({ settings }: { settings: Settings }) {
             juntos.
           </p>
           <p className="helper">
-            Limpar os dados do navegador ou desinstalar pode remover os
-            levantamentos. O armazenamento depende do navegador e do endereço do
-            aplicativo. Versão 1.0.0.
+            O ScanLog nunca apaga dados por conta própria. Só limpar os dados do
+            navegador manualmente ou desinstalar remove os levantamentos, por
+            isso exporte backups. Versão 1.0.0.
           </p>
         </div>
       </section>
-      {clearing && (
-        <Confirm
-          title="Limpar todos os dados?"
-          message="Todos os levantamentos, registros, históricos e configurações deste aplicativo serão apagados. Exporte um backup antes de continuar."
-          strong="APAGAR TUDO"
-          onClose={() => setClearing(false)}
-          onConfirm={async () => {
-            await clearAllData();
-            window.location.hash = '/';
-          }}
-        />
-      )}
       {backup && (
         <Modal title="Restaurar backup" onClose={() => setBackup(null)}>
           <p>

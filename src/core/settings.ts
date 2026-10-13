@@ -31,3 +31,19 @@ export function upgradeLegacySettings(settings: Settings): Settings {
     },
   };
 }
+
+/**
+ * Padrões de etiqueta e normalização são fixos no código: não aparecem nas
+ * Configurações e qualquer valor antigo salvo no aparelho é substituído.
+ * Só "Preencher B com três dígitos" continua ajustável.
+ */
+export function withFixedRules(settings: Settings): Settings {
+  return {
+    ...settings,
+    saveRaw: defaultSettings.saveRaw,
+    rules: {
+      ...structuredClone(defaultSettings.rules),
+      padB: settings.rules?.padB ?? defaultSettings.rules.padB,
+    },
+  };
+}

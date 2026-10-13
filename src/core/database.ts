@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { upgradeLegacySettings } from './settings';
+import { upgradeLegacySettings, withFixedRules } from './settings';
 import { bombonaSeries } from './parser';
 import {
   defaultSettings,
@@ -90,13 +90,26 @@ export class InventoryDatabase extends Dexie {
       finds: 'id, lotId, [lotId+order]',
     });
     this.version(9).stores({ outbox: 'id, createdAt, lotId, itemId' });
+    // Padrões de etiqueta passam a ser fixos no código.
+    this.version(10)
+      .stores({})
+      .upgrade(async (transaction) => {
+        const table = transaction.table<Settings, string>('settings');
+        const settings = await table.get('main');
+        if (settings) await table.put(withFixedRules(settings));
+      });
   }
 }
 export const db = new InventoryDatabase();
 export async function initializeDatabase() {
   await db.open();
-  if (!(await db.settings.get('main')))
-    await db.settings.put(structuredClone(defaultSettings));
+  const settings = await db.settings.get('main');
+  if (!settings) await db.settings.put(structuredClone(defaultSettings));
+  else {
+    const fixed = withFixedRules(settings);
+    if (JSON.stringify(fixed) !== JSON.stringify(settings))
+      await db.settings.put(fixed);
+  }
 }
 export async function createSession(
   name: string,

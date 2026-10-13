@@ -602,7 +602,7 @@ test('synthetic camera decodes Data Matrix once while continuously visible and r
   }
 });
 
-test('camera failure is actionable; backup schema rejects bad data; clear requires strong confirmation', async ({
+test('camera failure is actionable; backup schema rejects bad data; no destructive shortcuts', async ({
   page,
 }) => {
   await create(page);
@@ -621,17 +621,40 @@ test('camera failure is actionable; backup schema rejects bad data; clear requir
     buffer: Buffer.from('{"version":99}'),
   });
   await expect(page.getByRole('alert')).toContainText('Backup inválido');
-  await page.getByRole('button', { name: 'Limpar todos os dados' }).click();
+  // Sem atalhos para apagar tudo nem para mexer nos padrões das etiquetas.
   await expect(
-    page.getByRole('button', { name: 'Confirmar exclusão' }),
-  ).toBeDisabled();
+    page.getByRole('button', { name: 'Limpar todos os dados' }),
+  ).toHaveCount(0);
+  await expect(page.getByText('Padrões e normalização avançada')).toHaveCount(
+    0,
+  );
+});
+
+test('unknown routes show the 404 page and navigation recovers', async ({
+  page,
+}) => {
+  await page.goto(`${base}#/nao-existe`);
+  await expect(
+    page.getByRole('heading', { name: 'Esta página não existe' }),
+  ).toBeVisible();
+  await expect(page.locator('.not-found-path')).toHaveText('/nao-existe');
+  await expect(page.locator('.main-nav')).toHaveAttribute(
+    'data-active',
+    'none',
+  );
   await page
-    .getByLabel('Digite APAGAR TUDO para confirmar')
-    .fill('APAGAR TUDO');
+    .getByRole('button', { name: 'Ir para Levantamentos', exact: true })
+    .click();
   await expect(
-    page.getByRole('button', { name: 'Confirmar exclusão' }),
-  ).toBeEnabled();
-  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    page.getByRole('button', { name: 'Levantamentos', exact: true }),
+  ).toHaveAttribute('aria-current', 'page');
+  const csp = await page
+    .locator('meta[http-equiv="Content-Security-Policy"]')
+    .getAttribute('content');
+  expect(csp).toContain("object-src 'none'");
+  const missing = await page.request.get(`${base}404.html`);
+  expect(missing.ok()).toBe(true);
+  expect(await missing.text()).toContain('Esta página não existe');
 });
 
 test('responsive surfaces at all required widths and local manifest/assets under subpath', async ({

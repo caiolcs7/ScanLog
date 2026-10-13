@@ -28,6 +28,7 @@ import {
   useNotice,
   type MenuItem,
 } from '../../components/ui';
+import { NotFound } from '../notfound/NotFound';
 import type { FindItem, Settings } from '../../core/models';
 import { itemLabel } from '../../core/identify';
 import { formatKg } from '../../core/weight';
@@ -117,17 +118,19 @@ export function LotPage({
     return <Loading text="Abrindo lote…" />;
   if (!lot)
     return (
-      <main className="page">
-        <button
-          className="back-link"
-          onClick={() => navigate('/identificacao')}
-        >
-          <ArrowLeft />
-          Identificação
-        </button>
-        <h1>Lote não encontrado</h1>
-        <p>{lotQuery.error || 'Ele pode ter sido excluído.'}</p>
-      </main>
+      <NotFound
+        title="Lote não encontrado"
+        message={lotQuery.error || 'Ele pode ter sido excluído.'}
+        actions={
+          <button
+            className="primary"
+            onClick={() => navigate('/identificacao')}
+          >
+            <ArrowLeft />
+            Voltar à Identificação
+          </button>
+        }
+      />
     );
   const count = (status: ItemStatus) =>
     items.filter((i) => i.status === status).length;
