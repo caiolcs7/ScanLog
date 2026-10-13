@@ -18,9 +18,11 @@ import { decodeImage } from '../../services/decoder';
 import { useHid, usePageVisible, useWakeLock } from '../../hooks/useHardware';
 import { errorMessage, useNotice, useTask } from '../../components/ui';
 import { unlockAudio } from '../../services/feedback';
-import { warmUpOcr } from '../../services/ocr';
+import { releaseOcr, warmUpOcr } from '../../services/ocr';
 import { db } from '../../core/database';
 
+/** Câmera aberta sem nenhuma leitura por 90 s é desligada. */
+const CAMERA_IDLE_MS = 90_000;
 export function ScannerPanel({
   settings,
   blocked,
@@ -57,18 +59,22 @@ export function ScannerPanel({
   const visible = usePageVisible(),
     notice = useNotice(),
     task = useTask();
+  // Última atividade (leitura ou toque): sem uso, câmera e tela apagam.
+  const [activity, setActivity] = useState(0);
+  const touch = () => setActivity((n) => n + 1);
   const service = useMemo(
     () =>
-      new ScannerService(
-        (raw, frame) => scanRef.current(raw, 'camera', frame),
-        setCamera,
-      ),
+      new ScannerService((raw, frame) => {
+        setActivity((n) => n + 1);
+        return scanRef.current(raw, 'camera', frame);
+      }, setCamera),
     [],
   );
   const scanning = active && visible && input === 'camera' && !blocked;
   useEffect(() => {
     service.setFrameCapture(settings.readDescription);
     if (settings.readDescription) warmUpOcr();
+    return () => void releaseOcr();
   }, [service, settings.readDescription]);
   useEffect(() => {
     service.setCapture(settings.cameraCapture ?? 'button');
@@ -79,12 +85,26 @@ export function ScannerPanel({
     else service.stop();
     return () => service.stop();
   }, [service, scanning, cameraId, settings.autoTorch]);
+  const noticeRef = useRef(notice);
+  noticeRef.current = notice;
+  useEffect(() => {
+    if (!camera.running || camera.armed) return;
+    const timer = setTimeout(() => {
+      setActive(false);
+      noticeRef.current(
+        'Câmera pausada para economizar bateria. Toque em Iniciar câmera.',
+      );
+    }, CAMERA_IDLE_MS);
+    return () => clearTimeout(timer);
+  }, [camera.running, camera.armed, activity]);
   const locked = useWakeLock(
     visible && !blocked && (camera.running || input === 'hid'),
+    activity,
   );
-  useHid(input === 'hid' && visible && !blocked, (raw) =>
-    scanRef.current(raw, 'hid'),
-  );
+  useHid(input === 'hid' && visible && !blocked, (raw) => {
+    touch();
+    return scanRef.current(raw, 'hid');
+  });
   async function readImage(file: File) {
     setImageBusy(true);
     setActive(false);
@@ -211,6 +231,7 @@ export function ScannerPanel({
                 disabled={blocked}
                 onClick={() => {
                   unlockAudio();
+                  touch();
                   if (camera.armed) service.cancelRead();
                   else {
                     sameGalao?.set(false);
@@ -228,6 +249,7 @@ export function ScannerPanel({
                   title="Ler e manter no mesmo galão"
                   onClick={() => {
                     unlockAudio();
+                    touch();
                     sameGalao.set(true);
                     service.requestRead();
                   }}

@@ -9,10 +9,20 @@ export function usePageVisible() {
   }, []);
   return visible;
 }
-export function useWakeLock(active: boolean) {
-  const [locked, setLocked] = useState(false);
+/** Tela acesa sem uso por 2 min volta a apagar; uma nova leitura reacende. */
+const WAKE_IDLE_MS = 120_000;
+export function useWakeLock(active: boolean, activity = 0) {
+  const [locked, setLocked] = useState(false),
+    [idle, setIdle] = useState(false);
   useEffect(() => {
-    if (!active || !('wakeLock' in navigator)) return;
+    setIdle(false);
+    if (!active) return;
+    const timer = setTimeout(() => setIdle(true), WAKE_IDLE_MS);
+    return () => clearTimeout(timer);
+  }, [active, activity]);
+  const hold = active && !idle;
+  useEffect(() => {
+    if (!hold || !('wakeLock' in navigator)) return;
     let cancelled = false;
     let lock: WakeLockSentinel | undefined;
     void navigator.wakeLock
@@ -31,7 +41,7 @@ export function useWakeLock(active: boolean) {
       cancelled = true;
       void lock?.release().catch(() => {});
     };
-  }, [active]);
+  }, [hold]);
   return locked;
 }
 export function useHid(

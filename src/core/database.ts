@@ -10,6 +10,7 @@ import {
   type FindLot,
   type FindItem,
 } from './models';
+import type { OutboxEntry } from '../cloud/outbox';
 
 export class InventoryDatabase extends Dexie {
   sessions!: Table<Session, string>;
@@ -18,6 +19,8 @@ export class InventoryDatabase extends Dexie {
   history!: Table<ScanHistory, string>;
   lots!: Table<FindLot, string>;
   finds!: Table<FindItem, string>;
+  /** Cadastros da Identificação aguardando envio à nuvem (sem sinal). */
+  outbox!: Table<OutboxEntry, string>;
   constructor(name = 'almoxarifado-local') {
     super(name);
     this.version(1).stores({
@@ -86,6 +89,7 @@ export class InventoryDatabase extends Dexie {
       lots: 'id, updatedAt',
       finds: 'id, lotId, [lotId+order]',
     });
+    this.version(9).stores({ outbox: 'id, createdAt, lotId, itemId' });
   }
 }
 export const db = new InventoryDatabase();
@@ -208,9 +212,18 @@ export async function restoreRecords(records: InventoryRecord[]) {
 export async function clearAllData() {
   await db.transaction(
     'rw',
-    [db.sessions, db.records, db.settings, db.history, db.lots, db.finds],
+    [
+      db.sessions,
+      db.records,
+      db.settings,
+      db.history,
+      db.lots,
+      db.finds,
+      db.outbox,
+    ],
     async () => {
       await Promise.all([
+        db.outbox.clear(),
         db.lots.clear(),
         db.finds.clear(),
         db.sessions.clear(),

@@ -2,7 +2,7 @@
 
 # ScanLog
 
-PWA local para ler etiquetas Data Matrix, associar produtos a endereços e exportar relatórios Excel. Sem backend, login, serviços de análise ou envio de imagens.
+PWA para ler etiquetas Data Matrix, associar produtos a endereços e exportar relatórios Excel. Os levantamentos ficam só no aparelho de cada pessoa. A aba Identificação (produtos sem código) é compartilhada entre almoxarifado e estrutura pelo Supabase.
 
 **Aplicativo publicado:** [Abrir ScanLog](https://caiolcs7.github.io/ScanLog/).
 
@@ -71,5 +71,22 @@ Também há leitor físico (teclado com Enter/Tab), leitura de uma imagem por ve
 Configurações contém regras de produto/endereço, wrapper completo, preenchimento opcional B, som, vibração, câmera, tema e backup. O padrão não impõe lista de prefixos aos produtos. Endereços completos têm prioridade e reconhecem rua, andar, coluna, lado e prateleira, incluindo etiquetas como `A1;R02A1C01EP02`, normalizadas para `R02A1C01EP02`. Data Matrix GS1 com AI 251 e 37 são normalizados automaticamente, por exemplo `(251)MPC149M050P6(37)1` vira `MPC149M050P6`. Letras minúsculas viram maiúsculas sem trocar letras por outras. A migração substitui automaticamente as antigas regras padrão e preserva regras realmente personalizadas; backups antigos recebem a mesma correção quando restaurados.
 
 Exporte um backup JSON regularmente. Restaurar adiciona cópias e só substitui configurações se essa opção for marcada. Dados são separados por navegador e origem do site. Limpar os dados do navegador pode removê-los. Exportar Excel não apaga o levantamento.
+
+## Identificação (Supabase)
+
+O almoxarifado fotografa os produtos sem código (1 a 4 fotos, endereço, bombona e peso opcionais) e envia o lote. A estrutura abre o lote e preenche o código item por item, ou marca **Sem código** com o motivo. O almoxarifado confere e confirma: as fotos originais são apagadas e fica só uma miniatura de até 20 KB, removida 150 dias depois pela limpeza diária. Os dois setores exportam a planilha Excel (Código do Produto, Endereço, Galão e Peso, como no levantamento) e o Word continua como alternativa.
+
+As fotos são tiradas pela câmera dentro do app, sem passar pela galeria do celular. Sem sinal, o cadastro fica na fila do aparelho e sobe sozinho quando a conexão voltar.
+
+**Acesso:** cada setor tem uma conta no Supabase (`almoxarifado@scanlog.app` e `estrutura@scanlog.app`). Na tela de entrada a pessoa escolhe o setor, digita a senha do setor e o próprio nome, que fica gravado em cada ação. As senhas ficam só no Supabase e podem ser trocadas no painel sem nova versão do app. As regras de quem pode fazer o quê estão no banco (RLS e gatilhos), não só na interface.
+
+**Configuração (já aplicada no projeto `scanlog`):**
+
+1. Rodar `supabase/migrations/*.sql` em ordem (tabelas, RLS, Storage, cron e papel por e-mail).
+2. Publicar a Edge Function `supabase/functions/limpeza-fotos` com verificação de JWT desligada (ela confere um segredo guardado no Vault).
+3. Em **Authentication → Users → Add user**, criar as duas contas com **Auto Confirm User**. O setor é definido pelo e-mail.
+4. A URL e a chave publicável estão em `src/cloud/config.ts` e podem ser trocadas no build por `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY` (veja `.env.example`). A chave `service_role` nunca vai para o app.
+
+`supabase/tests/rls.sql` verifica as regras de acesso numa transação desfeita no final.
 
 Veja [arquitetura](docs/ARQUITETURA.md), [validação e limitações](docs/VALIDACAO.md) e [sistema visual](DESIGN.md).
