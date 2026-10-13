@@ -52,6 +52,7 @@ import {
   useNotice,
   useTask,
 } from '../../components/ui';
+import { NotFound } from '../notfound/NotFound';
 import { ScannerPanel } from '../scanner/ScannerPanel';
 import { ManualDialog } from '../scanner/ManualDialog';
 import { ExportDialog } from '../export/ExportDialog';
@@ -298,14 +299,16 @@ export function SessionPage({
   if (!records) return <Loading />;
   if (!session)
     return (
-      <main className="page">
-        <h1>Levantamento não encontrado</h1>
-        <p>Ele pode ter sido excluído neste dispositivo.</p>
-        <button onClick={() => navigate('/')}>
-          <ArrowLeft />
-          Voltar aos levantamentos
-        </button>
-      </main>
+      <NotFound
+        title="Levantamento não encontrado"
+        message="Ele pode ter sido excluído neste dispositivo."
+        actions={
+          <button className="primary" onClick={() => navigate('/')}>
+            <ArrowLeft />
+            Voltar aos levantamentos
+          </button>
+        }
+      />
     );
   const stats = statistics(records),
     currentCount = records.filter(

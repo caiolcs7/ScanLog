@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-n3bmlhNZrTQia/cEX5Yc7/7FZN9Bcp0swaTEj+Lnwx8='; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'" />
+    <meta name="referrer" content="no-referrer" />
+    <!-- Ao mudar o script no fim da página, atualize o hash sha256 da CSP acima. -->
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#1f0036" />
+    <title>Página não encontrada · ScanLog</title>
+    <style>
+      :root {
+        --surface: #f6f4f9; --card: #ffffff; --ink: #1a0b2e; --ink-2: #5d5270; --ink-3: #776c8a;
+        --border: #e4dcee; --primary: #4c007d; --deep: #1f0036; --accent: #e8590c; --muted: #f0ebf6;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root { --surface: #100a17; --card: #19121f; --ink: #f3eff8; --ink-2: #bcb2ca; --ink-3: #9a90a8;
+          --border: #2f2540; --primary: #cfa8f5; --muted: #231a2d; }
+      }
+      * { box-sizing: border-box; margin: 0; }
+      body { min-height: 100dvh; display: flex; flex-direction: column; background: var(--surface); color: var(--ink);
+        font: 15px/1.5 -apple-system, 'Segoe UI', Roboto, sans-serif; }
+      header { height: 64px; display: flex; align-items: center; padding: 0 20px; color: #fff;
+        background: linear-gradient(180deg, #2a0049, var(--deep)); box-shadow: inset 0 -2px 0 var(--accent); font-weight: 650; font-size: 19px; letter-spacing: -0.02em; }
+      .mark { width: 22px; height: 22px; margin-right: 10px; border-radius: 5px; background: #fff; transform: rotate(45deg) scale(0.8); box-shadow: inset 0 0 0 6px #fff, inset 0 0 0 11px var(--accent); }
+      main { flex: 1; display: grid; place-items: center; padding: 32px 16px; text-align: center; }
+      .card { max-width: 480px; display: grid; justify-items: center; gap: 14px; }
+      .label { position: relative; width: 210px; margin-bottom: 16px; padding: 18px; display: flex; gap: 16px; align-items: center;
+        background: var(--card); border: 1px solid var(--border); border-radius: 12px; transform: rotate(-3deg); overflow: hidden;
+        box-shadow: 0 22px 40px -28px #1f003680; }
+      .matrix { width: 60px; height: 60px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+      .matrix i { background: var(--ink); border-radius: 1px; opacity: 0.85; }
+      .matrix i.o { opacity: 0; }
+      .code { font: 600 40px/1 ui-monospace, 'Cascadia Code', Consolas, monospace; letter-spacing: -0.04em; color: var(--primary); text-align: left; }
+      .code small { display: block; margin-top: 6px; font: 600 11px/1 -apple-system, 'Segoe UI', sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+      .scan { position: absolute; inset: 0 0 auto; height: 2px; background: var(--accent); box-shadow: 0 0 14px 2px #e8590c99;
+        animation: scan 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate; }
+      @keyframes scan { from { transform: translateY(6px); } to { transform: translateY(92px); } }
+      @media (prefers-reduced-motion: reduce) { .scan { animation: none; } }
+      h1 { font-size: clamp(24px, 6vw, 32px); line-height: 1.15; letter-spacing: -0.03em; }
+      p { color: var(--ink-2); }
+      a.btn { margin-top: 10px; min-height: 48px; padding: 0 22px; display: inline-flex; align-items: center; border-radius: 12px;
+        background: linear-gradient(180deg, #5d0a96, var(--primary)); color: #fff; text-decoration: none; font-weight: 600;
+        box-shadow: 0 10px 22px -12px #4c007dcc; }
+      a.btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+      @media (prefers-color-scheme: dark) { a.btn { color: #1e1430; background: var(--primary); } }
+    </style>
+  </head>
+  <body>
+    <header><span class="mark" aria-hidden="true"></span>ScanLog</header>
+    <main>
+      <div class="card">
+        <div class="label" aria-hidden="true">
+          <div class="matrix">
+            <i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i>
+            <i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i>
+            <i></i><i class="o"></i><i></i><i></i><i class="o"></i><i class="o"></i>
+            <i></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i>
+            <i></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <div class="code">404<small>Sem leitura</small></div>
+          <span class="scan"></span>
+        </div>
+        <h1>Esta página não existe</h1>
+        <p>O endereço pode ter mudado ou foi digitado errado. Seus levantamentos continuam salvos no aparelho.</p>
+        <a class="btn" id="home" href="./">Abrir o ScanLog</a>
+      </div>
+    </main>
+    <script>
+      (function () {
+        var seg = location.pathname.split('/')[1];
+        var base = location.hostname.slice(-10) === '.github.io' && seg ? '/' + seg + '/' : '/';
+        document.getElementById('home').href = base;
+      })();
+    </script>
+  </body>
+</html>

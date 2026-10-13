@@ -1,4 +1,10 @@
-import { Component, useEffect, useState, type ReactNode } from 'react';
+import {
+  Component,
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import {
@@ -12,10 +18,12 @@ import {
 } from 'lucide-react';
 import { db, initializeDatabase } from '../core/database';
 import { activateWaitingUpdate } from '../services/pwa';
+import { protectStorage } from '../services/storage';
 import { Home } from '../features/sessions/Home';
 import { SessionPage } from '../features/sessions/SessionPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { IdentifyArea } from '../features/identify/IdentifyArea';
+import { NotFound } from '../features/notfound/NotFound';
 import { BrandLogo } from '../components/BrandLogo';
 import {
   Loading,
@@ -108,6 +116,13 @@ function Application() {
     void initializeDatabase()
       .then(() => setReady(true))
       .catch((e) => setError(errorMessage(e)));
+    // Dados são preciosos: pede proteção contra limpeza automática ao abrir
+    // e de novo no primeiro toque (alguns navegadores exigem um gesto).
+    void protectStorage().then((granted) => {
+      if (granted) return;
+      const retry = () => void protectStorage();
+      window.addEventListener('pointerdown', retry, { once: true });
+    });
   }, []);
   useEffect(() => {
     const routeChange = () => {
@@ -137,11 +152,24 @@ function Application() {
   }, [settings?.theme]);
   const match = /^\/session\/([^/]+)\/(scanner|records)$/.exec(route),
     identify = /^\/(?:identificacao|identify)(?:\/([^/?]+))?/.exec(route);
-  const area = identify
-    ? 'identify'
-    : route === '/settings'
-      ? 'settings'
-      : 'surveys';
+  const home = route === '/' || route === '';
+  const notFound = wrongPath()
+    ? window.location.pathname
+    : !match && !identify && !home && route !== '/settings'
+      ? route
+      : null;
+  const area = notFound
+    ? 'none'
+    : identify
+      ? 'identify'
+      : route === '/settings'
+        ? 'settings'
+        : 'surveys';
+  const tabs = [
+    ['surveys', '/', 'Levantamentos', <ClipboardList key="i" />],
+    ['identify', '/identificacao', 'Identificação', <ScanSearch key="i" />],
+    ['settings', '/settings', 'Configurações', <SettingsIcon key="i" />],
+  ] as const;
   if (error)
     return (
       <main className="fatal-error">
@@ -170,32 +198,29 @@ function Application() {
         >
           <BrandLogo />
         </button>
-        <nav className="main-nav" aria-label="Navegação principal">
-          {(
-            [
-              ['surveys', '/', 'Levantamentos', <ClipboardList key="i" />],
-              [
-                'identify',
-                '/identificacao',
-                'Identificação',
-                <ScanSearch key="i" />,
-              ],
-              [
-                'settings',
-                '/settings',
-                'Configurações',
-                <SettingsIcon key="i" />,
-              ],
-            ] as const
-          ).map(([key, path, label, icon]) => (
+        <nav
+          className="main-nav"
+          aria-label="Navegação principal"
+          data-active={area}
+          style={
+            {
+              '--nav-index': Math.max(
+                0,
+                tabs.findIndex(([key]) => key === area),
+              ),
+            } as CSSProperties
+          }
+        >
+          <span className="nav-indicator" aria-hidden="true" />
+          {tabs.map(([key, path, label, icon]) => (
             <button
               key={key}
+              className="nav-tab"
               aria-label={label}
               aria-current={area === key ? 'page' : undefined}
-              className={area === key ? 'nav-active' : ''}
               onClick={() => navigate(path)}
             >
-              {icon}
+              <span className="nav-icon">{icon}</span>
               <span>{label}</span>
             </button>
           ))}
@@ -230,6 +255,8 @@ function Application() {
                 : 'Abrindo dados locais…'
             }
           />
+        ) : notFound !== null ? (
+          <NotFound path={notFound} />
         ) : match ? (
           <SessionPage
             key={match[1]}
@@ -267,6 +294,16 @@ function Application() {
       </div>
     </div>
   );
+}
+/**
+ * Caminho fora do app (ex.: /ScanLog/qualquer-coisa servido pelo service
+ * worker). As telas usam rotas com #, então o caminho deve ser a raiz.
+ */
+function wrongPath() {
+  const base = import.meta.env.BASE_URL;
+  if (!base.startsWith('/')) return false;
+  const path = window.location.pathname;
+  return path !== base && path !== `${base}index.html`;
 }
 function DatabaseError() {
   return <Boxes size={44} />;

@@ -1,12 +1,49 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import type { Plugin } from 'vite';
 
 const base = process.env.BASE_PATH || './';
+const supabase = new URL(
+  process.env.VITE_SUPABASE_URL || 'https://pygedyytlcplfweibenv.supabase.co',
+);
+const ocrCdn = 'https://cdn.jsdelivr.net';
+/**
+ * O GitHub Pages não permite cabeçalhos HTTP, então a política de segurança
+ * vai na própria página: só carrega código do app, fala só com o Supabase do
+ * projeto e com a CDN do OCR, e não pode ser embutida em outros sites.
+ */
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' 'wasm-unsafe-eval' blob: ${ocrCdn}`,
+  `worker-src 'self' blob: ${ocrCdn}`,
+  `connect-src 'self' data: blob: ${supabase.origin} wss://${supabase.host} ${ocrCdn}`,
+  `img-src 'self' data: blob: ${supabase.origin}`,
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  "media-src 'self' blob:",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+function securityPolicy(): Plugin {
+  return {
+    name: 'scanlog-security-policy',
+    apply: 'build',
+    transformIndexHtml: (html) =>
+      html.replace(
+        '<head>',
+        `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}" />\n    <meta name="referrer" content="strict-origin-when-cross-origin" />`,
+      ),
+  };
+}
 export default defineConfig({
   base,
   plugins: [
     react(),
+    securityPolicy(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'logo.svg', 'wordmark.svg', 'icons/*.png'],
