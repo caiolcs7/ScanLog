@@ -7,6 +7,7 @@ import { activateWaitingUpdate } from '../services/pwa';
 import { Home } from '../features/sessions/Home';
 import { SessionPage } from '../features/sessions/SessionPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
+import { IdentifyPage } from '../features/identify/IdentifyPage';
 import { BrandLogo } from '../components/BrandLogo';
 import {
   Loading,
@@ -124,7 +125,8 @@ function Application() {
     media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
   }, [settings?.theme]);
-  const match = /^\/session\/([^/]+)\/(scanner|records)$/.exec(route);
+  const match = /^\/session\/([^/]+)\/(scanner|records)$/.exec(route),
+    lot = /^\/identify\/([^/]+)$/.exec(route);
   if (error)
     return (
       <main className="fatal-error">
@@ -221,6 +223,8 @@ function Application() {
             view={match[2]}
             settings={settings}
           />
+        ) : lot ? (
+          <IdentifyPage key={lot[1]} id={lot[1]} settings={settings} />
         ) : route === '/settings' ? (
           <SettingsPage key={settings.id} settings={settings} />
         ) : (

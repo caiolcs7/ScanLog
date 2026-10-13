@@ -7,6 +7,8 @@ import {
   type InventoryRecord,
   type Settings,
   type ScanHistory,
+  type FindLot,
+  type FindItem,
 } from './models';
 
 export class InventoryDatabase extends Dexie {
@@ -14,6 +16,8 @@ export class InventoryDatabase extends Dexie {
   records!: Table<InventoryRecord, string>;
   settings!: Table<Settings, string>;
   history!: Table<ScanHistory, string>;
+  lots!: Table<FindLot, string>;
+  finds!: Table<FindItem, string>;
   constructor(name = 'almoxarifado-local') {
     super(name);
     this.version(1).stores({
@@ -78,6 +82,10 @@ export class InventoryDatabase extends Dexie {
             session.weighted ??= false;
           });
       });
+    this.version(8).stores({
+      lots: 'id, updatedAt',
+      finds: 'id, lotId, [lotId+order]',
+    });
   }
 }
 export const db = new InventoryDatabase();
@@ -200,12 +208,11 @@ export async function restoreRecords(records: InventoryRecord[]) {
 export async function clearAllData() {
   await db.transaction(
     'rw',
-    db.sessions,
-    db.records,
-    db.settings,
-    db.history,
+    [db.sessions, db.records, db.settings, db.history, db.lots, db.finds],
     async () => {
       await Promise.all([
+        db.lots.clear(),
+        db.finds.clear(),
         db.sessions.clear(),
         db.records.clear(),
         db.history.clear(),
