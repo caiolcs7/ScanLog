@@ -851,3 +851,113 @@ test('weighted survey prefills catalog weights and asks for unknown ones', async
   await expect(repeat).toBeHidden();
   await expect(page.locator('.session-heading p')).toContainText('2 registros');
 });
+test('identificação: fotos, endereço lido, bombona, peso, edição e Word com CODIGO', async ({
+  page,
+}) => {
+  const photo = (name: string) => path.resolve(`tests/fixtures/${name}`);
+  await page.goto(base);
+  await page.getByRole('button', { name: /Identificação/ }).click();
+  await page
+    .getByRole('button', { name: 'Nova identificação', exact: true })
+    .first()
+    .click();
+  await page.getByLabel('Nome do lote').fill('Sem código R01');
+  await page.getByRole('button', { name: 'Criar lote' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Sem código R01', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Exportar para identificação' }),
+  ).toBeDisabled();
+
+  // Item 1: duas fotos, endereço lido pelo scanner, bombona e peso.
+  await page.getByRole('button', { name: 'Adicionar produto' }).first().click();
+  const form = page.getByRole('dialog', { name: 'Produto sem código' });
+  await expect(
+    form.getByRole('button', { name: 'Salvar', exact: true }),
+  ).toBeDisabled();
+  await form
+    .locator('input[type=file][multiple]')
+    .setInputFiles([photo('blank.png'), photo('product-gs1-real.jpg')]);
+  await expect(form.locator('.photo-slot.filled')).toHaveCount(2);
+  await form.getByRole('radio', { name: 'Com endereço' }).click();
+  await form.getByRole('button', { name: 'Ler', exact: true }).click();
+  const reader = page.getByRole('dialog', { name: 'Ler endereço' });
+  await reader
+    .getByLabel('Selecionar imagem da etiqueta')
+    .setInputFiles(photo('address.png'));
+  await expect(reader).toBeHidden();
+  await expect(form.getByRole('textbox', { name: 'Endereço' })).toHaveValue(
+    'R01A1C03DP02',
+  );
+  await form.getByPlaceholder('R15G03').fill('r01g05');
+  await form.getByPlaceholder('0,00').fill('abc');
+  await expect(form.getByPlaceholder('0,00')).toHaveValue('');
+  await form.getByPlaceholder('0,00').fill('12,5');
+  await expect(form).toContainText('0,0125 kg');
+  await form.getByRole('button', { name: 'Salvar e próximo' }).click();
+  await expect(form.locator('.photo-slot.filled')).toHaveCount(0);
+  // Endereço e bombona continuam para o próximo produto.
+  await expect(form.getByRole('textbox', { name: 'Endereço' })).toHaveValue(
+    'R01A1C03DP02',
+  );
+  await expect(form.getByPlaceholder('R15G03')).toHaveValue('R01G05');
+
+  // Item 2: quatro fotos é o limite.
+  await form
+    .locator('input[type=file][multiple]')
+    .setInputFiles([
+      photo('blank.png'),
+      photo('address.png'),
+      photo('address2.png'),
+      photo('bombona.png'),
+      photo('code128.png'),
+    ]);
+  await expect(form.locator('.photo-slot.filled')).toHaveCount(4);
+  await expect(form.locator('.photo-slot.add')).toHaveCount(0);
+  await form.getByRole('radio', { name: 'Sem endereço' }).click();
+  await form.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(form).toBeHidden();
+  await expect(page.locator('.find-card')).toHaveCount(2);
+  await expect(page.locator('.session-heading p')).toContainText('2 produtos');
+  await expect(page.locator('.find-card').nth(1)).toContainText('Sem endereço');
+
+  // Edição e exclusão.
+  await page.getByRole('button', { name: 'Editar item 02' }).click();
+  const edit = page.getByRole('dialog', { name: 'Editar item 02' });
+  await edit.getByRole('button', { name: 'Remover foto 4' }).click();
+  await edit.getByPlaceholder('Ex.: conector azul, 3 vias').fill('tampa azul');
+  await edit.getByRole('button', { name: 'Salvar alterações' }).click();
+  await expect(page.locator('.find-card').nth(1)).toContainText('tampa azul');
+
+  // Persistência após recarregar.
+  await page.reload();
+  await expect(page.locator('.find-card')).toHaveCount(2);
+
+  // Exportação Word.
+  await page
+    .getByRole('button', { name: 'Exportar para identificação' })
+    .click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Baixar documento' }).click();
+  const file = await (await download).path();
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(await readFile(file));
+  const xml = await zip.file('word/document.xml')!.async('string');
+  expect(xml.match(/CODIGO : /g)).toHaveLength(2);
+  expect(xml).toContain('R01A1C03DP02');
+  expect(xml).toContain('R01G05');
+  expect(xml).toContain('0,0125 kg');
+  expect(xml).toContain('tampa azul');
+  expect(
+    Object.keys(zip.files).filter((f) => /^word\/media\/.+/.test(f)).length,
+  ).toBeGreaterThanOrEqual(4);
+
+  // Exclusão do item e do lote.
+  await page.getByRole('button', { name: 'Opções do item 01' }).click();
+  await page.getByRole('menuitem', { name: 'Excluir' }).click();
+  await page.getByRole('button', { name: 'Confirmar exclusão' }).click();
+  await expect(page.locator('.find-card')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Identificação' }).first().click();
+  await expect(page.locator('.find-lot')).toContainText('1 produto');
+});
