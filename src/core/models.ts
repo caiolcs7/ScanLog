@@ -128,3 +128,27 @@ export type ParsedScan = {
   warnings: string[];
   error?: string;
 };
+
+/** Foto comprimida de um produto sem código. */
+export type FindPhoto = { blob: Blob; width: number; height: number };
+/** Lote de identificação: produtos sem código enviados a outro setor. */
+export type FindLot = {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  count: number;
+  nextOrder: number;
+};
+export type FindItem = {
+  id: string;
+  lotId: string;
+  order: number;
+  createdAt: number;
+  photos: FindPhoto[];
+  address?: string;
+  bombona?: string;
+  /** Peso unitário em gramas. */
+  weight?: number;
+  note?: string;
+};

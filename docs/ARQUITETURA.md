@@ -47,3 +47,7 @@ Não foi implementada importação de XLSX, explicitamente opcional no pedido; r
 ## Levantamento com peso
 
 Sessões com `weighted: true` (aba Com peso) guardam `weight` em gramas por registro, aceitando valores abaixo de 1 g. Ao ler um produto, o peso é preenchido por `src/data/weights.json`, gerado com `node scripts/weights.mjs <caminho do localizador-de-materiais>` a partir dos descritivos com "PESO"; sem peso conhecido, o app pede o valor. O peso pode ser alterado na leitura e na lista de registros. A exportação acrescenta a coluna Peso em kg (10 g → 0,010 kg; 0,24 g → 0,00024 kg), como número no XLSX.
+
+## Identificação de produtos sem código
+
+A aba Identificação guarda lotes (`lots`) e produtos (`finds`) no schema v8. Cada produto tem de 1 a 4 fotos JPEG reduzidas a 1600 px, endereço opcional (digitado ou lido pelo scanner), bombona, peso em gramas e observação. "Salvar e próximo" mantém endereço e bombona. A exportação gera um Word (.docx, `docx` carregado sob demanda) com as fotos de cada item e o campo `CODIGO : ` para o setor responsável preencher e devolver; no celular, o arquivo pode ser compartilhado direto.
