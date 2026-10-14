@@ -1,21 +1,7 @@
-import {
-  Component,
-  useEffect,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from 'react';
+import { Component, useEffect, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import {
-  Boxes,
-  Cloud,
-  ClipboardList,
-  RefreshCw,
-  ScanSearch,
-  Settings as SettingsIcon,
-  ShieldCheck,
-} from 'lucide-react';
+import { Boxes, Cloud, RefreshCw, ShieldCheck } from 'lucide-react';
 import { db, initializeDatabase } from '../core/database';
 import { activateWaitingUpdate } from '../services/pwa';
 import { protectStorage } from '../services/storage';
@@ -24,6 +10,7 @@ import { SessionPage } from '../features/sessions/SessionPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { IdentifyArea } from '../features/identify/IdentifyArea';
 import { NotFound } from '../features/notfound/NotFound';
+import { MainNav, type NavArea } from './MainNav';
 import { BrandLogo } from '../components/BrandLogo';
 import {
   Loading,
@@ -158,18 +145,13 @@ function Application() {
     : !match && !identify && !home && route !== '/settings'
       ? route
       : null;
-  const area = notFound
+  const area: NavArea = notFound
     ? 'none'
     : identify
       ? 'identify'
       : route === '/settings'
         ? 'settings'
         : 'surveys';
-  const tabs = [
-    ['surveys', '/', 'Levantamentos', <ClipboardList key="i" />],
-    ['identify', '/identificacao', 'Identificação', <ScanSearch key="i" />],
-    ['settings', '/settings', 'Configurações', <SettingsIcon key="i" />],
-  ] as const;
   if (error)
     return (
       <main className="fatal-error">
@@ -198,33 +180,7 @@ function Application() {
         >
           <BrandLogo />
         </button>
-        <nav
-          className="main-nav"
-          aria-label="Navegação principal"
-          data-active={area}
-          style={
-            {
-              '--nav-index': Math.max(
-                0,
-                tabs.findIndex(([key]) => key === area),
-              ),
-            } as CSSProperties
-          }
-        >
-          <span className="nav-indicator" aria-hidden="true" />
-          {tabs.map(([key, path, label, icon]) => (
-            <button
-              key={key}
-              className="nav-tab"
-              aria-label={label}
-              aria-current={area === key ? 'page' : undefined}
-              onClick={() => navigate(path)}
-            >
-              <span className="nav-icon">{icon}</span>
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
+        <MainNav area={area} vibrate={!!settings?.vibration} />
       </header>
       {needRefresh && (
         <div className="update-banner">

@@ -604,9 +604,6 @@
     height: 30px;
     width: auto;
   }
-  .app-header nav {
-    margin-left: auto;
-  }
   .page {
     max-width: 1360px;
     margin: 0 auto;
@@ -3685,7 +3682,7 @@
     }
     .settings-save {
       /* Acima da barra de navegação fixa. */
-      bottom: calc(78px + env(safe-area-inset-bottom));
+      bottom: calc(96px + env(safe-area-inset-bottom));
       margin-bottom: 30px;
     }
     .settings-save .primary {
@@ -5164,211 +5161,428 @@
   }
 }
 
-/* Navegação principal: trilho de vidro com indicador deslizante. No celular
-   vira barra inferior fixa, ao alcance do polegar. */
+/* Navegação principal: dock tátil 3D. Trilho roxo rebaixado, pílula de
+   cerâmica que desliza e estica, esfera laranja na aba ativa e ícones com
+   micro-animação própria. No celular vira dock flutuante na base da tela.
+   Só CSS: transições curtas, nada rodando em laço (bateria). */
 @layer components {
+  .nav-scene {
+    margin-left: auto;
+    perspective: 900px;
+  }
+  /* Animações do dock nunca criam rolagem horizontal. */
+  .app-header {
+    overflow-x: clip;
+  }
   .main-nav {
-    --nav-pad: 5px;
+    --nav-pad: 6px;
+    --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --spring-soft: cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     padding: var(--nav-pad);
     border-radius: 999px;
-    background: linear-gradient(180deg, #ffffff17, #ffffff08);
+    background: linear-gradient(180deg, #300c52e0 0%, #21063bf2 100%);
     box-shadow:
-      inset 0 0 0 1px #ffffff1f,
-      inset 0 1px 0 #ffffff24,
-      0 12px 28px -20px #000000;
+      0 6px 0 -2px #140028,
+      0 20px 36px -14px #000000bf,
+      inset 0 5px 10px #080012bf,
+      inset 0 -2px 3px #ffffff2e,
+      0 0 0 1.5px #ffffff24;
+    transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    transform-style: preserve-3d;
+    transition: transform 0.6s var(--spring-soft);
     isolation: isolate;
+  }
+  .nav-glare {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      220px circle at var(--glare-x, 20%) var(--glare-y, 50%),
+      #ffffff24,
+      transparent 70%
+    );
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  .main-nav:hover .nav-glare {
+    opacity: 1;
   }
   .nav-indicator {
     position: absolute;
-    z-index: -1;
+    z-index: 1;
     top: var(--nav-pad);
     bottom: var(--nav-pad);
     left: var(--nav-pad);
     width: calc((100% - 2 * var(--nav-pad)) / 3);
-    border-radius: 999px;
-    background: linear-gradient(180deg, #ffffff, #f3eafb);
-    box-shadow:
-      inset 0 1px 0 #ffffff,
-      inset 0 -1px 0 #d9c4ee,
-      0 10px 22px -12px #000000cc;
+    pointer-events: none;
     transform: translateX(calc(var(--nav-index, 0) * 100%));
     transition:
-      transform var(--dur-4) var(--ease-pop),
-      opacity var(--dur-2) var(--ease-out);
+      transform 0.52s var(--spring),
+      opacity 0.2s ease;
   }
   .main-nav[data-active='none'] .nav-indicator {
     opacity: 0;
   }
+  .nav-pill {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ffffff 0%, #f4effa 100%);
+    box-shadow:
+      0 4px 0 #cbb8e3,
+      0 10px 20px -4px #0d001a8c,
+      inset 0 2px 2px #ffffff,
+      inset 0 -2px 4px #af96d259;
+    transition:
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+  /* Estica na direção do movimento; dois nomes para reiniciar a cada troca. */
+  .main-nav[data-moved][data-move='a'] .nav-pill {
+    animation: pill-stretch-a 0.5s var(--spring-soft);
+  }
+  .main-nav[data-moved][data-move='b'] .nav-pill {
+    animation: pill-stretch-b 0.5s var(--spring-soft);
+  }
+  @keyframes pill-stretch-a {
+    35% {
+      transform: scaleX(1.09) scaleY(0.92);
+    }
+  }
+  @keyframes pill-stretch-b {
+    35% {
+      transform: scaleX(1.09) scaleY(0.92);
+    }
+  }
+  .main-nav:has(.nav-tab[aria-current='page']:active) .nav-pill {
+    transform: translateY(2px);
+    box-shadow:
+      0 2px 0 #cbb8e3,
+      0 5px 12px -2px #0d001a8c,
+      inset 0 2px 4px #af96d266;
+  }
   .main-nav .nav-tab {
     position: relative;
-    min-height: 46px;
-    padding: 0 18px 0 7px;
-    gap: 10px;
+    z-index: 2;
+    min-height: 52px;
+    padding: 6px 22px 6px 6px;
+    gap: 12px;
     justify-content: flex-start;
     border: 0;
     border-radius: 999px;
-    color: #ffffffd0;
+    color: #d6c5eb;
     background: transparent;
     box-shadow: none;
-    font-weight: 560;
-    font-size: 14.5px;
-    letter-spacing: -0.005em;
     white-space: nowrap;
-    transition: color var(--dur-3) var(--ease-out);
+    transition: transform 0.28s var(--spring);
   }
   .main-nav .nav-tab:hover:not(:disabled) {
-    color: #ffffff;
     background: transparent;
   }
-  .nav-icon {
-    width: 32px;
-    height: 32px;
+  .main-nav .nav-tab:active {
+    transform: translateY(2px) scale(0.97);
+    transition-duration: 0.08s;
+  }
+  .nav-orb {
+    position: relative;
+    width: 40px;
+    height: 40px;
     display: grid;
     place-items: center;
-    border-radius: 999px;
-    background: #ffffff14;
-    box-shadow: inset 0 0 0 1px #ffffff1c;
-    transition:
-      background var(--dur-3) var(--ease-out),
-      box-shadow var(--dur-3) var(--ease-out),
-      transform var(--dur-3) var(--ease-pop);
-  }
-  .nav-icon svg {
-    width: 17px;
-    height: 17px;
-    stroke-width: 2;
-  }
-  .nav-tab:hover .nav-icon {
-    background: #ffffff26;
-    transform: translateY(-1px);
-  }
-  .nav-tab:active .nav-icon {
-    transform: scale(0.9);
-  }
-  .main-nav .nav-tab[aria-current='page'] {
-    color: var(--primary-deep);
-  }
-  .nav-tab[aria-current='page'] .nav-icon {
-    color: #ffffff;
-    background: linear-gradient(145deg, #ff9a52, var(--accent) 55%, #c94a06);
+    border-radius: 50%;
+    background: linear-gradient(145deg, #5f2d8c73, #2d0c50a6);
+    border: 1.5px solid #ffffff29;
     box-shadow:
-      inset 0 1px 0 #ffffff59,
-      0 6px 14px -6px #e8590ce6;
-    animation: nav-pop var(--dur-4) var(--ease-pop);
+      0 3px 0 #0f021eb3,
+      0 6px 12px #00000059,
+      inset 0 2px 3px #ffffff26;
+    transition:
+      transform 0.5s var(--spring),
+      background 0.35s ease,
+      box-shadow 0.35s ease,
+      border-color 0.35s ease;
   }
-  @keyframes nav-pop {
-    0% {
-      transform: scale(0.6) rotate(-14deg);
+  .nav-orb::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 18%;
+    width: 64%;
+    height: 38%;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #ffffff73, #ffffff00);
+    opacity: 0.35;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+  .nav-tab[aria-current='page'] .nav-orb {
+    background: radial-gradient(
+      circle at 32% 24%,
+      #ffae52 0%,
+      #ff6d14 48%,
+      #d94300 85%,
+      #9e2a00 100%
+    );
+    border-color: #ffd2af99;
+    transform: translateY(-1px) scale(1.05);
+    box-shadow:
+      0 3px 0 #8f2800,
+      0 8px 16px -2px #ff69148c,
+      inset 0 3px 5px #ffffff8c,
+      inset 0 -4px 6px #821e0099;
+  }
+  .nav-tab[aria-current='page'] .nav-orb::before {
+    opacity: 0.75;
+  }
+  .nav-tab:active .nav-orb {
+    transform: translateY(2px) scale(0.94);
+    transition-duration: 0.08s;
+  }
+  .nav-tab[aria-current='page']:active .nav-orb {
+    box-shadow:
+      0 1px 0 #8f2800,
+      0 4px 8px #ff69148c,
+      inset 0 2px 4px #0000004d;
+  }
+  .main-nav .nav-svg {
+    width: 21px;
+    height: 21px;
+    fill: none;
+    stroke: #e5d8f6;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    overflow: visible;
+    transition: stroke 0.3s ease;
+  }
+  .nav-tab[aria-current='page'] .nav-svg {
+    stroke: #ffffff;
+    filter: drop-shadow(0 1px 2px #7a1e0080);
+  }
+  .nav-svg g,
+  .nav-svg path {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .nav-label {
+    font-size: 14.5px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    transition:
+      color 0.35s ease,
+      text-shadow 0.35s ease;
+  }
+  .nav-tab[aria-current='page'] .nav-label {
+    color: #230642;
+    font-weight: 750;
+    text-shadow: 0 1px 0 #ffffffcc;
+  }
+  @media (hover: hover) {
+    .main-nav .nav-tab:not([aria-current='page']):hover {
+      transform: translateY(-2px);
     }
-    60% {
-      transform: scale(1.08) rotate(3deg);
+    .nav-tab:not([aria-current='page']):hover .nav-label {
+      color: #ffffff;
+      text-shadow: 0 4px 12px #00000080;
+    }
+    .nav-tab:not([aria-current='page']):hover .nav-orb {
+      border-color: #ffffff4d;
+    }
+  }
+
+  /* Levantamentos: prancheta salta e o checklist se desenha em sequência. */
+  .nav-tab[aria-current='page'] .ico-clipboard {
+    animation: ico-pop 0.55s var(--spring);
+  }
+  .nav-tab[aria-current='page'] .ico-tick,
+  .nav-tab[aria-current='page'] .ico-line {
+    stroke-dasharray: 6;
+    animation: ico-draw 0.4s ease both;
+  }
+  .nav-tab[aria-current='page'] .ico-tick-1 {
+    animation-delay: 0.1s;
+  }
+  .nav-tab[aria-current='page'] .ico-line-1 {
+    animation-delay: 0.18s;
+  }
+  .nav-tab[aria-current='page'] .ico-tick-2 {
+    animation-delay: 0.26s;
+  }
+  .nav-tab[aria-current='page'] .ico-line-2 {
+    animation-delay: 0.34s;
+  }
+  /* Identificação: mira pulsa, lupa procura e um feixe varre uma vez. */
+  .ico-beam {
+    opacity: 0;
+    stroke: #ffe1c7;
+  }
+  .nav-tab[aria-current='page'] .ico-frame {
+    animation: ico-frame 0.6s var(--spring);
+  }
+  .nav-tab[aria-current='page'] .ico-loupe {
+    animation: ico-loupe 0.65s var(--spring);
+  }
+  .nav-tab[aria-current='page'] .ico-beam {
+    animation: ico-beam 0.9s var(--spring-soft) 0.15s;
+  }
+  /* Configurações: engrenagem gira com inércia. */
+  .nav-tab[aria-current='page'] .ico-gear {
+    animation: ico-gear 0.75s var(--spring);
+  }
+  @keyframes ico-pop {
+    0% {
+      transform: scale(0.8) rotate(-8deg);
+    }
+    50% {
+      transform: scale(1.12) rotate(4deg);
+    }
+  }
+  @keyframes ico-draw {
+    from {
+      stroke-dashoffset: 6;
+      opacity: 0.3;
+    }
+    to {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+  }
+  @keyframes ico-frame {
+    0% {
+      transform: scale(0.78);
+    }
+    45% {
+      transform: scale(1.14);
+    }
+  }
+  @keyframes ico-loupe {
+    0% {
+      transform: scale(0.8);
+    }
+    35% {
+      transform: translate(-2px, -2px) scale(1.15);
+    }
+    70% {
+      transform: translate(2px, 1px) scale(1.05);
+    }
+  }
+  @keyframes ico-beam {
+    0% {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    25% {
+      opacity: 1;
     }
     100% {
-      transform: none;
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  @keyframes ico-gear {
+    0% {
+      transform: rotate(0deg) scale(0.85);
+    }
+    60% {
+      transform: rotate(195deg) scale(1.12);
+    }
+    100% {
+      transform: rotate(180deg);
+    }
+  }
+  /* Onda luminosa no toque. */
+  .nav-ripple {
+    position: absolute;
+    inset: -25%;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle, #ff913c80 0%, #ffffff00 70%);
+    animation: nav-ripple 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes nav-ripple {
+    from {
+      transform: scale(0.2);
+      opacity: 0.9;
+    }
+    to {
+      transform: scale(1.8);
+      opacity: 0;
     }
   }
 }
 @layer responsive {
   @media (min-width: 768px) and (max-width: 1023px) {
+    .main-nav {
+      transform: none;
+    }
     .main-nav .nav-tab {
       padding-right: 14px;
       gap: 8px;
-      font-size: 13.5px;
     }
-    .nav-icon {
-      width: 28px;
-      height: 28px;
+    .nav-label {
+      font-size: 13px;
+    }
+    .nav-orb {
+      width: 36px;
+      height: 36px;
     }
   }
   @media (max-width: 767px) {
-    .main-nav {
-      --nav-pad: 8px;
+    /* Dock flutuante na base, ao alcance do polegar. Fundo sólido, sem blur. */
+    .nav-scene {
       position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      left: 10px;
+      right: 10px;
+      bottom: max(10px, env(safe-area-inset-bottom));
       z-index: 40;
       margin: 0;
-      padding: var(--nav-pad) var(--nav-pad)
-        max(var(--nav-pad), env(safe-area-inset-bottom));
-      border-radius: 0;
-      background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
-      backdrop-filter: blur(14px) saturate(1.4);
-      -webkit-backdrop-filter: blur(14px) saturate(1.4);
-      border-top: 1px solid var(--border);
-      box-shadow: 0 -10px 28px -20px #1f003699;
+      perspective: none;
     }
-    /* No celular o indicador é uma pílula atrás do ícone e um traço laranja
-       no topo da barra. */
-    .nav-indicator {
-      bottom: auto;
-      height: 52px;
-      background: none;
-      box-shadow: none;
+    .main-nav {
+      --nav-pad: 6px;
+      border-radius: 26px;
+      background: linear-gradient(180deg, #300c52 0%, #21063b 100%);
+      box-shadow:
+        0 5px 0 -2px #140028,
+        0 18px 30px -12px #1f0036a6,
+        inset 0 5px 10px #080012bf,
+        inset 0 -2px 3px #ffffff2e,
+        0 0 0 1.5px #ffffff24;
+      transform: none;
     }
-    .nav-indicator::before {
-      content: '';
-      position: absolute;
-      top: 2px;
-      left: 50%;
-      width: 60px;
-      height: 32px;
-      margin-left: -30px;
-      border-radius: 999px;
-      background: var(--primary-soft);
-      box-shadow: inset 0 0 0 1px var(--primary-line);
+    .nav-glare {
+      display: none;
     }
-    .nav-indicator::after {
-      content: '';
-      position: absolute;
-      top: calc(-1 * var(--nav-pad) - 1px);
-      left: 50%;
-      width: 28px;
-      height: 3px;
-      margin-left: -14px;
-      border-radius: 0 0 3px 3px;
-      background: var(--accent);
-      box-shadow: 0 2px 10px #e8590c99;
+    .nav-pill {
+      border-radius: 20px;
     }
     .main-nav .nav-tab {
       flex-direction: column;
       justify-content: center;
-      gap: 2px;
-      min-height: 52px;
-      padding: 2px;
-      border-radius: var(--radius-sm);
-      color: var(--text-secondary);
-      font-size: 11.5px;
+      gap: 3px;
+      min-height: 62px;
+      padding: 5px 2px 6px;
+      border-radius: 20px;
     }
-    .main-nav .nav-tab:hover:not(:disabled) {
-      color: var(--text-primary);
+    .nav-orb {
+      width: 34px;
+      height: 34px;
     }
-    .nav-icon,
-    .nav-tab:hover .nav-icon {
-      width: 60px;
-      height: 32px;
-      background: transparent;
-      box-shadow: none;
-      transform: none;
+    .main-nav .nav-svg {
+      width: 18px;
+      height: 18px;
     }
-    .nav-icon svg {
-      width: 20px;
-      height: 20px;
-    }
-    .main-nav .nav-tab[aria-current='page'] {
-      color: var(--primary);
-      font-weight: 650;
-    }
-    .nav-tab[aria-current='page'] .nav-icon {
-      color: var(--primary);
-      background: transparent;
-      box-shadow: none;
+    .nav-label {
+      font-size: 11px;
+      letter-spacing: 0;
     }
     .app-shell {
-      padding-bottom: calc(68px + env(safe-area-inset-bottom));
+      padding-bottom: calc(96px + env(safe-area-inset-bottom));
     }
   }
 }
