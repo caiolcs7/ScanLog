@@ -26,7 +26,7 @@ const fineHover =
 
 /**
  * Dock tátil das três áreas. Pílula branca desliza e "estica" ao mudar de
- * aba; esfera laranja marca a ativa. Inclinação e reflexo seguem o mouse só
+ * aba; esfera laranja marca a ativa. O reflexo segue o mouse só
  * em computador e só enquanto o ponteiro se move: nenhum laço de animação
  * fica rodando, para não gastar bateria.
  */
@@ -61,15 +61,11 @@ export function MainNav({
         ny = (y - rect.top) / rect.height;
       el.style.setProperty('--glare-x', `${(nx * 100).toFixed(1)}%`);
       el.style.setProperty('--glare-y', `${(ny * 100).toFixed(1)}%`);
-      el.style.setProperty('--tilt-x', `${((0.5 - ny) * 8).toFixed(2)}deg`);
-      el.style.setProperty('--tilt-y', `${((nx - 0.5) * 6).toFixed(2)}deg`);
     });
   };
   const rest = () => {
     cancelAnimationFrame(frame.current);
     frame.current = 0;
-    dock.current?.style.removeProperty('--tilt-x');
-    dock.current?.style.removeProperty('--tilt-y');
   };
 
   return (
