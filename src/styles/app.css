@@ -3682,7 +3682,7 @@
     }
     .settings-save {
       /* Acima da barra de navegação fixa. */
-      bottom: calc(96px + env(safe-area-inset-bottom));
+      bottom: calc(84px + env(safe-area-inset-bottom));
       margin-bottom: 30px;
     }
     .settings-save .primary {
@@ -5168,14 +5168,13 @@
 @layer components {
   .nav-scene {
     margin-left: auto;
-    perspective: 900px;
   }
   /* Animações do dock nunca criam rolagem horizontal. */
   .app-header {
     overflow-x: clip;
   }
   .main-nav {
-    --nav-pad: 6px;
+    --nav-pad: 4px;
     --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     --spring-soft: cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
@@ -5185,14 +5184,11 @@
     border-radius: 999px;
     background: linear-gradient(180deg, #300c52e0 0%, #21063bf2 100%);
     box-shadow:
-      0 6px 0 -2px #140028,
-      0 20px 36px -14px #000000bf,
-      inset 0 5px 10px #080012bf,
-      inset 0 -2px 3px #ffffff2e,
-      0 0 0 1.5px #ffffff24;
-    transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
-    transform-style: preserve-3d;
-    transition: transform 0.6s var(--spring-soft);
+      0 3px 0 -1px #140028,
+      0 12px 24px -12px #000000a6,
+      inset 0 3px 6px #080012a6,
+      inset 0 -1px 1px #ffffff29,
+      0 0 0 1px #ffffff1f;
     isolation: isolate;
   }
   .nav-glare {
@@ -5234,10 +5230,10 @@
     border-radius: 999px;
     background: linear-gradient(180deg, #ffffff 0%, #f4effa 100%);
     box-shadow:
-      0 4px 0 #cbb8e3,
-      0 10px 20px -4px #0d001a8c,
-      inset 0 2px 2px #ffffff,
-      inset 0 -2px 4px #af96d259;
+      0 2px 0 #cbb8e3,
+      0 6px 14px -4px #0d001a73,
+      inset 0 1px 0 #ffffff,
+      inset 0 -1px 2px #af96d24d;
     transition:
       box-shadow 0.2s ease,
       transform 0.2s ease;
@@ -5251,56 +5247,56 @@
   }
   @keyframes pill-stretch-a {
     35% {
-      transform: scaleX(1.09) scaleY(0.92);
+      transform: scaleX(1.05) scaleY(0.95);
     }
   }
   @keyframes pill-stretch-b {
     35% {
-      transform: scaleX(1.09) scaleY(0.92);
+      transform: scaleX(1.05) scaleY(0.95);
     }
   }
   .main-nav:has(.nav-tab[aria-current='page']:active) .nav-pill {
-    transform: translateY(2px);
+    transform: translateY(1px);
     box-shadow:
-      0 2px 0 #cbb8e3,
-      0 5px 12px -2px #0d001a8c,
-      inset 0 2px 4px #af96d266;
+      0 1px 0 #cbb8e3,
+      0 3px 8px -2px #0d001a73,
+      inset 0 1px 3px #af96d266;
   }
   .main-nav .nav-tab {
     position: relative;
     z-index: 2;
-    min-height: 52px;
-    padding: 6px 22px 6px 6px;
-    gap: 12px;
-    justify-content: flex-start;
+    min-height: 42px;
+    padding: 4px 16px;
+    gap: 9px;
+    justify-content: center;
     border: 0;
     border-radius: 999px;
-    color: #d6c5eb;
+    color: #e2d6f1;
     background: transparent;
     box-shadow: none;
     white-space: nowrap;
+    -webkit-font-smoothing: antialiased;
     transition: transform 0.28s var(--spring);
   }
   .main-nav .nav-tab:hover:not(:disabled) {
     background: transparent;
   }
   .main-nav .nav-tab:active {
-    transform: translateY(2px) scale(0.97);
+    transform: translateY(1px) scale(0.98);
     transition-duration: 0.08s;
   }
   .nav-orb {
     position: relative;
-    width: 40px;
-    height: 40px;
+    width: 30px;
+    height: 30px;
     display: grid;
     place-items: center;
     border-radius: 50%;
     background: linear-gradient(145deg, #5f2d8c73, #2d0c50a6);
-    border: 1.5px solid #ffffff29;
+    border: 1px solid #ffffff2e;
     box-shadow:
-      0 3px 0 #0f021eb3,
-      0 6px 12px #00000059,
-      inset 0 2px 3px #ffffff26;
+      0 2px 0 #0f021e99,
+      inset 0 1px 1px #ffffff26;
     transition:
       transform 0.5s var(--spring),
       background 0.35s ease,
@@ -5310,8 +5306,8 @@
   .nav-orb::before {
     content: '';
     position: absolute;
-    top: 3px;
-    left: 18%;
+    top: 2px;
+    left: 20%;
     width: 64%;
     height: 38%;
     border-radius: 50%;
@@ -5329,31 +5325,30 @@
       #9e2a00 100%
     );
     border-color: #ffd2af99;
-    transform: translateY(-1px) scale(1.05);
     box-shadow:
-      0 3px 0 #8f2800,
-      0 8px 16px -2px #ff69148c,
-      inset 0 3px 5px #ffffff8c,
-      inset 0 -4px 6px #821e0099;
+      0 2px 0 #8f2800,
+      0 4px 10px -2px #ff691473,
+      inset 0 1px 2px #ffffff80,
+      inset 0 -2px 3px #821e0080;
   }
   .nav-tab[aria-current='page'] .nav-orb::before {
     opacity: 0.75;
   }
   .nav-tab:active .nav-orb {
-    transform: translateY(2px) scale(0.94);
+    transform: translateY(1px) scale(0.94);
     transition-duration: 0.08s;
   }
   .nav-tab[aria-current='page']:active .nav-orb {
     box-shadow:
       0 1px 0 #8f2800,
-      0 4px 8px #ff69148c,
-      inset 0 2px 4px #0000004d;
+      0 2px 6px #ff691473,
+      inset 0 1px 3px #0000004d;
   }
   .main-nav .nav-svg {
-    width: 21px;
-    height: 21px;
+    width: 16px;
+    height: 16px;
     fill: none;
-    stroke: #e5d8f6;
+    stroke: #efe6fa;
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -5362,7 +5357,7 @@
   }
   .nav-tab[aria-current='page'] .nav-svg {
     stroke: #ffffff;
-    filter: drop-shadow(0 1px 2px #7a1e0080);
+    filter: drop-shadow(0 1px 1px #7a1e0066);
   }
   .nav-svg g,
   .nav-svg path {
@@ -5370,25 +5365,24 @@
     transform-origin: center;
   }
   .nav-label {
-    font-size: 14.5px;
-    font-weight: 650;
-    letter-spacing: -0.015em;
+    font-size: 14px;
+    font-weight: 560;
+    letter-spacing: -0.01em;
+    line-height: 1;
     transition:
       color 0.35s ease,
       text-shadow 0.35s ease;
   }
   .nav-tab[aria-current='page'] .nav-label {
     color: #230642;
-    font-weight: 750;
-    text-shadow: 0 1px 0 #ffffffcc;
+    font-weight: 640;
   }
   @media (hover: hover) {
     .main-nav .nav-tab:not([aria-current='page']):hover {
-      transform: translateY(-2px);
+      transform: translateY(-1px);
     }
     .nav-tab:not([aria-current='page']):hover .nav-label {
       color: #ffffff;
-      text-shadow: 0 4px 12px #00000080;
     }
     .nav-tab:not([aria-current='page']):hover .nav-orb {
       border-color: #ffffff4d;
@@ -5517,19 +5511,16 @@
 }
 @layer responsive {
   @media (min-width: 768px) and (max-width: 1023px) {
-    .main-nav {
-      transform: none;
-    }
     .main-nav .nav-tab {
-      padding-right: 14px;
-      gap: 8px;
+      padding-inline: 10px;
+      gap: 7px;
     }
     .nav-label {
       font-size: 13px;
     }
     .nav-orb {
-      width: 36px;
-      height: 36px;
+      width: 28px;
+      height: 28px;
     }
   }
   @media (max-width: 767px) {
@@ -5544,45 +5535,44 @@
       perspective: none;
     }
     .main-nav {
-      --nav-pad: 6px;
-      border-radius: 26px;
+      --nav-pad: 5px;
+      border-radius: 22px;
       background: linear-gradient(180deg, #300c52 0%, #21063b 100%);
       box-shadow:
-        0 5px 0 -2px #140028,
-        0 18px 30px -12px #1f0036a6,
-        inset 0 5px 10px #080012bf,
-        inset 0 -2px 3px #ffffff2e,
-        0 0 0 1.5px #ffffff24;
-      transform: none;
+        0 3px 0 -1px #140028,
+        0 12px 24px -10px #1f0036a6,
+        inset 0 3px 6px #080012a6,
+        inset 0 -1px 1px #ffffff29,
+        0 0 0 1px #ffffff1f;
     }
     .nav-glare {
       display: none;
     }
     .nav-pill {
-      border-radius: 20px;
+      border-radius: 17px;
     }
     .main-nav .nav-tab {
       flex-direction: column;
       justify-content: center;
-      gap: 3px;
-      min-height: 62px;
-      padding: 5px 2px 6px;
-      border-radius: 20px;
+      gap: 4px;
+      min-height: 52px;
+      padding: 4px 2px;
+      border-radius: 17px;
     }
     .nav-orb {
-      width: 34px;
-      height: 34px;
+      width: 28px;
+      height: 28px;
     }
     .main-nav .nav-svg {
-      width: 18px;
-      height: 18px;
+      width: 15px;
+      height: 15px;
     }
     .nav-label {
       font-size: 11px;
       letter-spacing: 0;
     }
     .app-shell {
-      padding-bottom: calc(96px + env(safe-area-inset-bottom));
+      padding-bottom: calc(84px + env(safe-area-inset-bottom));
     }
   }
 }
