@@ -145,6 +145,10 @@ function Application() {
     : !match && !identify && !home && route !== '/settings'
       ? route
       : null;
+  // No celular as abas só aparecem nas telas iniciais: dentro de um
+  // levantamento ou lote, um toque sem querer não tira a pessoa da leitura.
+  const topLevel =
+    home || route === '/settings' || (!!identify && !identify[1]) || !!notFound;
   const area: NavArea = notFound
     ? 'none'
     : identify
@@ -168,7 +172,7 @@ function Application() {
       </main>
     );
   return (
-    <div className="app-shell">
+    <div className={`app-shell${topLevel ? '' : ' nav-focus'}`}>
       <a className="skip-link" href="#main-content">
         Ir para o conteúdo
       </a>

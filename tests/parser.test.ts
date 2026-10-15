@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../src/core/models';
 import {
+  addressParts,
+  bombonaSeries,
   cleanText,
   extractStreet,
   parseScan,
@@ -183,4 +185,55 @@ describe('central parser', () => {
   it('limits payload lengths', () =>
     expect(parseScan('IT' + 'A'.repeat(3000), rules).valid).toBe(false));
   it('normalizes query', () => expect(cleanText(' it pf ')).toBe('ITPF'));
+});
+describe('container (EXT) addresses', () => {
+  it.each([
+    ['A1;EXTA1C010P00', 'EXTA1C010P00'],
+    ['EXTA1C010P00', 'EXTA1C010P00'],
+    ['EXT A1 C01 0 P00 - CT01', 'EXTA1C010P00'],
+    ['ext a1 c01 0 p00', 'EXTA1C010P00'],
+    ['A1;EXTA2C020P00', 'EXTA2C020P00'],
+    ['A1;EXTA1C510P00', 'EXTA1C510P00'],
+    ['A1;EXTA2C52A0P00', 'EXTA2C52A0P00'],
+    ['EXT A2 C52A 0 P00 - CT52A', 'EXTA2C52A0P00'],
+  ])('reads %s as the container location %s', (raw, normalized) =>
+    expect(parseScan(raw, rules)).toMatchObject({
+      valid: true,
+      type: 'address',
+      normalized,
+    }),
+  );
+  it('does not warn when A1/A2 matches odd/even containers', () => {
+    expect(parseScan('EXTA1C010P00', rules).warnings).toEqual([]);
+    expect(parseScan('EXTA2C52A0P00', rules).warnings).toEqual([]);
+  });
+  it('keeps but flags a container whose A1/A2 does not match its number', () =>
+    expect(parseScan('EXTA2C010P00', rules)).toMatchObject({
+      valid: true,
+      type: 'address',
+      warnings: ['Confira a etiqueta: container 01 deveria ser A1.'],
+    }));
+  it('splits the container into its printed parts', () => {
+    expect(addressParts('EXTA1C010P00')).toEqual([
+      { label: 'Rua', value: 'EXT' },
+      { label: 'Andar', value: 'A1' },
+      { label: 'Container', value: 'CT01' },
+      { label: 'Lado', value: '0' },
+      { label: 'Prateleira', value: '00' },
+    ]);
+    expect(addressParts('EXTA2C52A0P00')?.[2]).toEqual({
+      label: 'Container',
+      value: 'CT52A',
+    });
+  });
+  it('groups containers under EXT without automatic bombonas', () => {
+    expect(extractStreet('EXTA2C52A0P00')).toBe('EXT');
+    expect(bombonaSeries('EXTA1C010P00')).toBe('Sem rua');
+    expect(bombonaSeries('R15A2C01DP02')).toBe('R15S');
+  });
+  it('does not treat ordinary products starting with EXT as containers', () =>
+    expect(parseScan('EXT12345', rules)).toMatchObject({
+      valid: true,
+      type: 'product',
+    }));
 });

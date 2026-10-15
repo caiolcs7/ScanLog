@@ -78,6 +78,16 @@ function unwrapGs1(raw: string): string | null {
     : null;
   return compact ? cleanText(compact[1]) : null;
 }
+/**
+ * Container (EXT) labels: EXT + A1/A2 (odd/even container) + C + container
+ * number with an optional letter (C01, C52A) + lado (0) + P + prateleira (00).
+ * The Data Matrix encodes A1;EXTA1C010P00; the printed text adds "- CT01".
+ */
+const CONTAINER_ADDRESS =
+  /^EXTA([0-9])C([0-9]{1,3}[A-Z]?)([0-9])P([0-9]{1,3})$/;
+export function isContainerAddress(value: string): boolean {
+  return CONTAINER_ADDRESS.test(value);
+}
 function isWarehouseAddress(value: string): boolean {
   // Physical location labels use R + street + A + floor, followed by an
   // alphanumeric location block. This recognizes labels such as:
@@ -85,7 +95,8 @@ function isWarehouseAddress(value: string): boolean {
   // address rules persisted by older app versions.
   return (
     /^R[0-9]{2,3}A[0-9]{1,3}[A-Z0-9]{1,120}$/.test(value) ||
-    /^R[0-9]{2,3}B[0-9]{1,3}$/.test(value)
+    /^R[0-9]{2,3}B[0-9]{1,3}$/.test(value) ||
+    isContainerAddress(value)
   );
 }
 function matchesAddress(value: string, rules: Rules): boolean {
@@ -103,6 +114,12 @@ function classify(value: string, rules: Rules): ParsedScan['type'] {
 }
 function normalizeStructuredAddress(raw: string, rules: Rules): string | null {
   const compact = cleanText(raw).replace(/[^A-Z0-9]/g, '');
+  // Printed container text: EXT A1 C01 0 P00 - CT01 (CT repeats the C number).
+  const container =
+    /^(EXTA[0-9]C[0-9]{1,3}[A-Z]?[0-9]P[0-9]{1,3})(?:CT[0-9]{1,3}[A-Z]?)?$/.exec(
+      compact,
+    );
+  if (container) return container[1];
   if (!/^R[0-9]{2,3}/.test(compact)) return null;
   return matchesAddress(compact, rules) ? compact : null;
 }
@@ -180,6 +197,8 @@ export function parseScan(raw: string, rules: Rules): ParsedScan {
       normalized,
       'Código desconhecido ou ambíguo. Confira a etiqueta e os padrões em Configurações.',
     );
+  const parity = containerParityWarning(normalized);
+  if (type === 'address' && parity) warnings.push(parity);
   if (
     type === 'address' &&
     rules.padB &&
@@ -197,7 +216,17 @@ export function parseScan(raw: string, rules: Rules): ParsedScan {
   }
   return { raw, normalized, type, valid: true, warnings };
 }
+/** A1 marks odd containers and A2 even ones; a mismatch is kept but flagged. */
+function containerParityWarning(address: string): string | null {
+  const match = CONTAINER_ADDRESS.exec(address);
+  if (!match) return null;
+  const expected = parseInt(match[2], 10) % 2 === 0 ? '2' : '1';
+  return match[1] === expected
+    ? null
+    : `Confira a etiqueta: container ${match[2]} deveria ser A${expected}.`;
+}
 export function extractStreet(address: string): string {
+  if (isContainerAddress(address)) return 'EXT';
   return /^R[0-9]+(?=[A-Z]|$)/.exec(address)?.[0] ?? 'Sem rua';
 }
 /** Upper-floor (A2) bombonas carry an S suffix: R15A2… → R15G01S. */
@@ -206,8 +235,9 @@ export function bombonaSuffix(address: string): string {
 }
 /** Bombona numbering series of an address: street plus floor suffix (R15, R15S). */
 export function bombonaSeries(address: string): string {
-  const street = extractStreet(address);
-  return street === 'Sem rua' ? street : street + bombonaSuffix(address);
+  // Containers have no automatic bombona numbering (only streets do).
+  const street = /^R[0-9]+(?=[A-Z]|$)/.exec(address)?.[0];
+  return street ? street + bombonaSuffix(address) : 'Sem rua';
 }
 /**
  * Named segments of a standard location (R15A2C01DP02 → rua 15, andar 2,
@@ -216,6 +246,17 @@ export function bombonaSeries(address: string): string {
 export function addressParts(
   address: string,
 ): { label: string; value: string }[] | null {
+  const container = CONTAINER_ADDRESS.exec(address);
+  if (container) {
+    const [, andar, numero, lado, prateleira] = container;
+    return [
+      { label: 'Rua', value: 'EXT' },
+      { label: 'Andar', value: `A${andar}` },
+      { label: 'Container', value: `CT${numero}` },
+      { label: 'Lado', value: lado },
+      { label: 'Prateleira', value: prateleira },
+    ];
+  }
   const match =
     /^R([0-9]{2,3})A([0-9]{1,3})C([0-9]{1,3})([A-Z])P([0-9]{1,3})$/.exec(
       address,

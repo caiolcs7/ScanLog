@@ -630,6 +630,37 @@ test('camera failure is actionable; backup schema rejects bad data; no destructi
   );
 });
 
+test('container labels are read as locations and phone tabs only show on start screens', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await create(page, 'Containers');
+  await expect(page.locator('.main-nav')).toBeHidden();
+  await imageScan(page, 'container-real.jpg');
+  await expect(page.locator('.address-value')).toHaveText('EXTA1C010P00');
+  await expect(page.locator('.address-parts')).toContainText('CT01');
+  await hid(page, 'EXT A2 C52A 0 P00 - CT52A');
+  await page
+    .getByRole('button', { name: 'Confirmar troca', exact: true })
+    .click();
+  await expect(page.locator('.address-value')).toHaveText('EXTA2C52A0P00');
+  await hid(page, 'ITPFPHM510ESAI4');
+  await expect(page.locator('.session-heading p')).toContainText('1 registros');
+  await page.locator('.back-link').click();
+  await expect(page.locator('.main-nav')).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Configurações', exact: true })
+    .click();
+  await expect(page.locator('.main-nav')).toBeVisible();
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page
+    .getByRole('button', { name: 'Levantamentos', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Containers', exact: true }).click();
+  // No computador as abas continuam no cabeçalho.
+  await expect(page.locator('.main-nav')).toBeVisible();
+});
+
 test('unknown routes show the 404 page and navigation recovers', async ({
   page,
 }) => {
@@ -700,6 +731,10 @@ test('responsive surfaces at all required widths and local manifest/assets under
     .boundingBox();
   expect(selectionTarget!.width).toBeGreaterThanOrEqual(44);
   expect(selectionTarget!.height).toBeGreaterThanOrEqual(44);
+  // No celular as abas ficam ocultas dentro do levantamento.
+  await expect(page.locator('.main-nav')).toBeHidden();
+  await page.locator('.back-link').click();
+  await expect(page.locator('.main-nav')).toBeVisible();
   await page
     .getByRole('button', { name: 'Configurações', exact: true })
     .click();
