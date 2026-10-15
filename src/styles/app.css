@@ -3356,8 +3356,10 @@
     .session-page {
       padding-top: 10px;
     }
+    /* Sem abas dentro do levantamento: a volta fica no topo, discreta. */
     .back-link {
-      display: none;
+      min-height: 40px;
+      margin-bottom: 0;
     }
     .session-heading {
       margin-bottom: 14px;
@@ -5573,6 +5575,13 @@
     }
     .app-shell {
       padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    }
+    /* Dentro de um levantamento ou lote: sem abas, sem toques acidentais. */
+    .app-shell.nav-focus .nav-scene {
+      display: none;
+    }
+    .app-shell.nav-focus {
+      padding-bottom: calc(16px + env(safe-area-inset-bottom));
     }
   }
 }

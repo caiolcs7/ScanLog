@@ -41,7 +41,11 @@ import {
   type AddressChangeCandidate,
 } from '../../core/scan-engine';
 import { statistics } from '../../core/statistics';
-import { addressParts, bombonaSeries } from '../../core/parser';
+import {
+  addressParts,
+  bombonaSeries,
+  isContainerAddress,
+} from '../../core/parser';
 import {
   errorMessage,
   ExcelIcon,
@@ -524,7 +528,9 @@ export function SessionPage({
                     </strong>
                   ) : (
                     <strong className="galao-value empty">
-                      Leia um endereço
+                      {isContainerAddress(session.activeAddress)
+                        ? 'Container sem galão automático'
+                        : 'Leia um endereço'}
                     </strong>
                   )}
                   {bombona.endsWith('S') && (
