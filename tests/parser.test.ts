@@ -116,6 +116,9 @@ describe('central parser', () => {
     ['251MPC149M050P6\u001d371', 'MPC149M050P6'],
     ['\u001d251MPC149M050P6\u001d371', 'MPC149M050P6'],
     ['251MPC149M050P6<GS>371', 'MPC149M050P6'],
+    ['~1251MPC149M050P6~1371', 'MPC149M050P6'],
+    ['~1251ITCP001M0016A~1371', 'ITCP001M0016A'],
+    ['251MPC149M050P6~1371', 'MPC149M050P6'],
   ])('extracts GS1 product payload from %s', (raw, normalized) =>
     expect(parseScan(raw, rules)).toMatchObject({
       valid: true,
@@ -142,6 +145,8 @@ describe('central parser', () => {
       '251ITPFPHM510ESAI4',
     );
   });
+  it('rejects an incomplete ~1 label instead of guessing', () =>
+    expect(parseScan('~1251MPC149M050P6', rules).valid).toBe(false));
   it('does not change legitimate numeric endings', () =>
     expect(
       parseScan('IT251ABC371', {
