@@ -52,7 +52,12 @@ function cleanKeepingGroupSeparator(raw: string): string {
     .toUpperCase();
 }
 function unwrapGs1(raw: string): string | null {
-  const value = cleanKeepingGroupSeparator(raw);
+  // Some label models print FNC1 as the literal escape "~1", producing
+  // ~1251<product>~1371. Treat it as the group separator before 251/37.
+  const value = cleanKeepingGroupSeparator(raw).replace(
+    /~1(?=251|37[0-9])/g,
+    GROUP_SEPARATOR,
+  );
   const hri = /^\(251\)(.+?)\(37\)[0-9]+$/.exec(value);
   if (hri) return cleanText(hri[1]);
   const withoutLeadingSeparator = value.startsWith(GROUP_SEPARATOR)
