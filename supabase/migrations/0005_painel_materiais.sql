@@ -144,7 +144,7 @@ create function public.painel_entrar(p_senha text, p_nome text) returns text
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  ip text := coalesce(nullif(btrim(split_part(
+  v_ip text := coalesce(nullif(btrim(split_part(
     coalesce(current_setting('request.headers', true)::json ->> 'x-forwarded-for', ''), ',', 1)), ''), '?');
   nome text := btrim(coalesce(p_nome, ''));
   token text;
@@ -153,14 +153,16 @@ begin
     raise exception 'Digite seu nome (2 a 40 letras).';
   end if;
   delete from painel_priv.tentativas where em < now() - interval '1 day';
-  if (select count(*) from painel_priv.tentativas where tentativas.ip = painel_entrar.ip
+  if (select count(*) from painel_priv.tentativas where ip = v_ip
       and em > now() - interval '15 minutes') >= 10 then
     raise exception 'Muitas tentativas. Espere 15 minutos.';
   end if;
+  -- Senha errada devolve null em vez de erro: um erro desfaria o registro da
+  -- tentativa e o limite acima nunca contaria nada.
   if not exists (select 1 from painel_priv.config
                  where senha_hash = extensions.crypt(coalesce(p_senha, ''), senha_hash)) then
-    insert into painel_priv.tentativas (ip) values (painel_entrar.ip);
-    raise exception 'Senha incorreta.';
+    insert into painel_priv.tentativas (ip) values (v_ip);
+    return null;
   end if;
   delete from painel_priv.sessoes where expira_em < now();
   token := encode(extensions.gen_random_bytes(24), 'hex');

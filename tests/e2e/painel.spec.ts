@@ -47,9 +47,7 @@ class PainelMock {
       const a = req.postDataJSON();
       const agora = new Date().toISOString();
       if (nome === 'painel_entrar')
-        return a.p_senha === 'senha-teste'
-          ? json('token-teste')
-          : json({ code: 'P0001', message: 'Senha incorreta.' }, 400);
+        return a.p_senha === 'senha-teste' ? json('token-teste') : json(null);
       if (a.p_token !== 'token-teste')
         return json({ code: '28000', message: 'Sessão expirada.' }, 401);
       if (nome === 'painel_importar') {

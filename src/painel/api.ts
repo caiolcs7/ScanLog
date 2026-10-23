@@ -165,10 +165,12 @@ export async function mudancasDe(codigo: string) {
 }
 
 export async function entrar(senha: string, nome: string): Promise<Sessao> {
-  const token = await rpc<string>('painel_entrar', {
+  // senha errada volta null (não erro), para a tentativa ficar contada no banco
+  const token = await rpc<string | null>('painel_entrar', {
     p_senha: senha,
     p_nome: nome,
   });
+  if (!token) throw new Error('Senha incorreta.');
   const s = { token, nome: nome.trim() };
   guardarSessao(s);
   return s;
