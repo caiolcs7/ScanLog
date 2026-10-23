@@ -386,7 +386,9 @@ function Mapa({
       <button
         className={`hm-c ${p > 0.55 ? 'hm-esc' : ''}`}
         style={{ '--p': `${Math.round(8 + p * 92)}%` } as React.CSSProperties}
-        onClick={() => irPara('materiais', { rua })}
+        onClick={() =>
+          irPara('materiais', { rua, andar: k.slice(3) as 'A1' | 'A2' })
+        }
         {...dica(
           <>
             <b>

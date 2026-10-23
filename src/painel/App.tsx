@@ -196,7 +196,7 @@ export function App() {
   };
   const escolherRua = (rua: string | null) => {
     if (rua) irPara('materiais', { rua });
-    else setFiltro((f) => ({ ...f, rua: '' }));
+    else setFiltro((f) => ({ ...f, rua: '', andar: '' }));
   };
 
   const total = dados?.materiais.length ?? 0,
