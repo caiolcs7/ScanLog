@@ -23,10 +23,10 @@ import {
   reais,
   ruaDe,
   semAcento,
+  type RuaResumo,
 } from './format';
 import { NovoCodigo } from './Ficha';
 import { Seg } from './ui';
-import type { RuaResumo } from './scene';
 
 export type Filtro = {
   busca: string;

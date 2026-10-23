@@ -53,6 +53,7 @@ export function local(l: string) {
   return m ? `${m[1]} · ${m[2]} · ${m[3]}${m[4].padStart(2, '0')}` : l;
 }
 export const ruaDe = (l: string) => l.slice(0, 3);
+export type RuaResumo = { rua: string; total: number; comPreco: number };
 
 /** Cotação mais recente (R$ por 1 unidade) e a data dela. */
 export type Cambio = Record<Moeda, { valor: number; data: string | null }>;

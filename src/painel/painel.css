@@ -33,6 +33,8 @@
   --f-body:
     'Geist Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --f-code: 'Geist Mono Variable', ui-monospace, Menlo, Consolas, monospace;
+  /* números das ruas: grotesca industrial estreita, a mesma da placa da luminária */
+  --f-rua: 'Barlow Semi Condensed', 'Arial Narrow', sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -274,53 +276,20 @@ svg {
   position: relative;
   margin: 6px -16px 0;
 }
-.g3d {
+.luz {
   position: relative;
-  height: 230px;
+  height: 240px;
+  overflow: hidden;
 }
-.g3d-cv {
+.luz-cv {
   display: block;
   width: 100%;
   height: 100%;
   opacity: 0;
-  transition: opacity 0.6s ease;
-  touch-action: pan-y;
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    transparent 0,
-    #000 8%,
-    #000 92%,
-    transparent
-  );
-  mask-image: linear-gradient(
-    180deg,
-    transparent 0,
-    #000 8%,
-    #000 92%,
-    transparent
-  );
+  transition: opacity 0.5s ease;
 }
-.stage.on .g3d-cv {
+.stage.on .luz-cv {
   opacity: 1;
-}
-.g3d-leg {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 14px;
-  padding: 0 16px;
-  font-size: 12.5px;
-  color: var(--muted);
-}
-.g3d-leg span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.g3d-dica {
-  margin-left: auto;
-  font-weight: 600;
-  color: var(--ink-2);
 }
 .sw {
   display: inline-block;
@@ -328,12 +297,6 @@ svg {
   height: 10px;
   border-radius: 3px;
   flex: none;
-}
-.sw-ok {
-  background: var(--ok);
-}
-.sw-kraft {
-  background: var(--kraft);
 }
 .sw-1 {
   background: var(--s1);
@@ -420,24 +383,9 @@ svg {
   .stage {
     margin: 10px 0 0;
   }
-  .g3d {
-    height: 330px;
-  }
-  .g3d-cv {
-    -webkit-mask-image: linear-gradient(
-      90deg,
-      transparent 0,
-      #000 5%,
-      #000 95%,
-      transparent
-    );
-    mask-image: linear-gradient(
-      90deg,
-      transparent 0,
-      #000 5%,
-      #000 95%,
-      transparent
-    );
+  .luz {
+    height: 340px;
+    border-radius: 16px;
   }
   .tabs {
     align-self: end;
@@ -1152,9 +1100,9 @@ button.hm-c:hover {
   white-space: nowrap;
 }
 .rua-ttl b {
-  font-family: var(--f-title);
-  font-weight: 800;
-  font-size: 30px;
+  font-family: var(--f-rua);
+  font-weight: 600;
+  font-size: 28px;
   line-height: 1;
   color: var(--accent);
   vertical-align: -2px;
@@ -1253,11 +1201,11 @@ button.hm-c:hover {
   line-height: 1.2;
 }
 .rua-n span {
-  font-family: var(--f-title);
-  font-weight: 800;
+  font-family: var(--f-rua);
+  font-weight: 600;
   font-size: 46px;
   line-height: 0.9;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 @media (max-width: 559px) {

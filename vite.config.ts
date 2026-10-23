@@ -94,7 +94,12 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,wasm,webmanifest,woff2}'],
         // O Painel de Materiais é uma página à parte, sempre da rede: fica
         // fora do cache do app e da página de reserva offline.
-        globIgnores: ['painel/**', 'assets/painel*', 'assets/big-shoulders*'],
+        globIgnores: [
+          'painel/**',
+          'assets/painel*',
+          'assets/big-shoulders*',
+          'assets/barlow*',
+        ],
         navigateFallbackDenylist: [/\/painel(\/|$)/],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
@@ -130,7 +135,8 @@ export default defineConfig({
         manualChunks: (id: string) =>
           id.includes('/exceljs/')
             ? 'excel'
-            : id.includes('/node_modules/three/')
+            : id.includes('/node_modules/three/') ||
+                id.includes('/src/painel/luz.ts')
               ? 'painel-3d'
               : id.includes('/src/painel/ruas.json')
                 ? 'painel-ruas'

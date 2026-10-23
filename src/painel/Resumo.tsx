@@ -14,10 +14,10 @@ import {
   porcento,
   reais,
   reaisCurto,
+  type RuaResumo,
 } from './format';
 import { diferencas } from './mudanca';
 import { Confirmar, useDica } from './ui';
-import type { RuaResumo } from './scene';
 
 type Props = {
   ctx: Contexto;

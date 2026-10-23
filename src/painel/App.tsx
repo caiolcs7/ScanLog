@@ -15,7 +15,7 @@ import {
   type Sessao,
 } from './api';
 import { cambio, inteiro, porcento, ruaDe } from './format';
-import { Galpao3D } from './Galpao3D';
+import { Luz } from './Luz';
 import { Resumo } from './Resumo';
 import { Lista, filtroVazio, type Filtro } from './Lista';
 import { Ficha } from './Ficha';
@@ -194,10 +194,6 @@ export function App() {
       ?.querySelector('.tabs')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  const escolherRua = (rua: string | null) => {
-    if (rua) irPara('materiais', { rua });
-    else setFiltro((f) => ({ ...f, rua: '', andar: '' }));
-  };
 
   const total = dados?.materiais.length ?? 0,
     comPreco = dados?.materiais.filter((m) => m.preco != null).length ?? 0;
@@ -244,12 +240,7 @@ export function App() {
               ? 'Sem conexão com o servidor'
               : 'Carregando…'}
         </p>
-        <Galpao3D
-          ruas={ruas}
-          rua={filtro.rua || null}
-          escolher={escolherRua}
-          pronto={!!dados?.materiais.length}
-        />
+        <Luz pronto={!!dados || !!falha} />
         <nav className="tabs" role="tablist" aria-label="Seções">
           {ABAS.map(({ id, nome, Icone }) => (
             <button
