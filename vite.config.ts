@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import type { Plugin } from 'vite';
+import { fileURLToPath } from 'node:url';
 
 const base = process.env.BASE_PATH || './';
 const supabase = new URL(
@@ -37,6 +38,21 @@ function securityPolicy(): Plugin {
         '<head>',
         `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}" />\n    <meta name="referrer" content="strict-origin-when-cross-origin" />`,
       ),
+  };
+}
+/** O Painel de Materiais não é o app instalável: sem link para o manifesto. */
+function painelSemManifesto(): Plugin {
+  return {
+    name: 'scanlog-painel-sem-manifesto',
+    apply: 'build',
+    enforce: 'post',
+    transformIndexHtml: {
+      order: 'post',
+      handler: (html, ctx) =>
+        ctx.path.includes('/painel/')
+          ? html.replace(/\s*<link rel="manifest"[^>]*>/, '')
+          : html,
+    },
   };
 }
 export default defineConfig({
@@ -76,6 +92,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,wasm,webmanifest,woff2}'],
+        // O Painel de Materiais é uma página à parte, sempre da rede: fica
+        // fora do cache do app e da página de reserva offline.
+        globIgnores: ['painel/**', 'assets/painel*', 'assets/big-shoulders*'],
+        navigateFallbackDenylist: [/\/painel(\/|$)/],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
@@ -96,14 +116,25 @@ export default defineConfig({
         ],
       },
     }),
+    painelSemManifesto(),
   ],
   worker: { format: 'es' },
   build: {
     target: 'es2022',
     rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('index.html', import.meta.url)),
+        painel: fileURLToPath(new URL('painel/index.html', import.meta.url)),
+      },
       output: {
         manualChunks: (id: string) =>
-          id.includes('/exceljs/') ? 'excel' : undefined,
+          id.includes('/exceljs/')
+            ? 'excel'
+            : id.includes('/node_modules/three/')
+              ? 'painel-3d'
+              : id.includes('/src/painel/ruas.json')
+                ? 'painel-ruas'
+                : undefined,
       },
     },
   },
