@@ -16,8 +16,9 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 
-export const DURACAO = 6.4;
-const ACENDE = 3.1; // a luminária da frente acende
+export const DURACAO = 6.6;
+const ACENDE = 4.85; // a luminária da frente acende
+const POUSA = 5.95; // a câmera termina o recuo; o resto é o quadro parado
 const PISO = -3.4; // altura do piso (a luminária fica em y = 0)
 const CORREDOR = [-5.4, -10.8, -16.2, -21.6]; // outras luminárias, em z
 const QUENTE = new T.Color(0.017, 0.016, 0.015); // cor do ar com as luzes acesas
@@ -962,12 +963,13 @@ void main() {
     this.chaves = [
       { t: 0, pos: V(-0.3, 0.24, 0.17), alvo: V(-0.07, 0.17, 0.05), fov: 30 },
       // pousa na placa e quase para: tempo de ler a marca
-      { t: 1.45, pos: V(0.01, 0.205, 0.34), alvo: V(0, 0.168, 0.12), fov: 30 },
-      { t: 1.9, pos: V(0.012, 0.2, 0.328), alvo: V(0, 0.166, 0.12), fov: 30 },
-      { t: 2.75, pos: V(0.1, 0.0, 0.36), alvo: V(0, -0.02, 0), fov: 30 },
-      { t: 3.3, pos: V(0.11, -0.012, 0.344), alvo: V(0, -0.025, 0), fov: 30 },
+      { t: 1.55, pos: V(0.01, 0.205, 0.34), alvo: V(0, 0.168, 0.12), fov: 30 },
+      { t: 2.35, pos: V(0.012, 0.2, 0.328), alvo: V(0, 0.166, 0.12), fov: 30 },
+      { t: 3.75, pos: V(0.1, 0.0, 0.36), alvo: V(0, -0.02, 0), fov: 30 },
+      // respiração diante do vidro apagado; a luz acende e empurra a câmera
+      { t: 4.95, pos: V(0.108, -0.01, 0.346), alvo: V(0, -0.024, 0), fov: 30 },
       {
-        t: DURACAO,
+        t: POUSA,
         pos: V(-0.45 * recuo, -0.1, 1.5 * recuo),
         alvo: V(-0.45, -0.35, -2.5),
         fov: 42,
@@ -1020,7 +1022,7 @@ void main() {
     this.camera(t);
 
     // varredura fria sobre as aletas e a placa
-    const v = faixa(t, 0.1, 1.8);
+    const v = faixa(t, 0.1, 2.3);
     this.varre.intensity = Math.sin(v * Math.PI) * 1.6;
     this.varre.position.set(mix(-0.55, 0.45, meio(v)), 0.34, 0.4);
 
@@ -1048,7 +1050,7 @@ void main() {
     let ar = on;
     this.distantes.forEach((d, i) => {
       const k = sai(
-        faixa(t, ACENDE + 0.75 + i * 0.24, ACENDE + 1.15 + i * 0.24),
+        faixa(t, ACENDE + 0.35 + i * 0.14, ACENDE + 0.6 + i * 0.14),
       );
       ar += k * 0.5;
       d.globo.color.setRGB(1, 0.93, 0.82).multiplyScalar(k * 3);
