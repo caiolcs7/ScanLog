@@ -2,6 +2,9 @@ import ExcelJS from 'exceljs';
 import type { Fornecedor, Material } from './api';
 import { emReais, local, MOEDAS, type Cambio } from './format';
 
+const origem = (f?: Fornecedor) =>
+  f ? (f.origem === 'nacional' ? 'Nacional' : 'Internacional') : '';
+
 const TINTA = 'FF14181B',
   LARANJA = 'FFE0560F';
 const quando = (v: string | null) =>
@@ -19,11 +22,15 @@ export const colunas = [
   'Tipo',
   'Peso (kg)',
   'Localização',
-  'Fornecedor',
-  'Nacional / Internacional',
-  'Preço unitário',
-  'Moeda',
-  'Preço em R$',
+  'Fornecedor 1',
+  'Nacional / Internacional 1',
+  'Preço unitário 1',
+  'Moeda 1',
+  'Fornecedor 2',
+  'Nacional / Internacional 2',
+  'Preço unitário 2',
+  'Moeda 2',
+  'Preço em R$ (do 1º com preço)',
   'Quantidade',
   'Valor total em R$',
   'Atualizado em',
@@ -33,6 +40,7 @@ export const colunas = [
 /** Uma linha por material, na ordem da lista que está na tela. */
 export function linha(m: Material, porId: Map<number, Fornecedor>, c: Cambio) {
   const f = m.fornecedor_id != null ? porId.get(m.fornecedor_id) : undefined,
+    f2 = m.fornecedor2_id != null ? porId.get(m.fornecedor2_id) : undefined,
     r = emReais(m, c);
   return [
     m.codigo,
@@ -41,9 +49,13 @@ export function linha(m: Material, porId: Map<number, Fornecedor>, c: Cambio) {
     m.peso_g != null ? m.peso_g / 1000 : '',
     m.locais.map(local).join(', '),
     f?.nome ?? '',
-    f ? (f.origem === 'nacional' ? 'Nacional' : 'Internacional') : '',
+    origem(f),
     m.preco ?? '',
     m.moeda ? MOEDAS[m.moeda].nome : '',
+    f2?.nome ?? '',
+    origem(f2),
+    m.preco2 ?? '',
+    m.moeda2 ? MOEDAS[m.moeda2].nome : '',
     r != null && Number.isFinite(r) ? Math.round(r * 100) / 100 : '',
     m.quantidade ?? '',
     r != null && Number.isFinite(r) && m.quantidade != null
@@ -75,9 +87,9 @@ export async function planilha(
       fitToHeight: 0,
     },
   });
-  ws.columns = [16, 52, 7, 11, 30, 28, 14, 14, 9, 14, 12, 16, 17, 18].map(
-    (width) => ({ width }),
-  );
+  ws.columns = [
+    16, 52, 7, 11, 30, 28, 14, 14, 9, 28, 14, 14, 9, 14, 12, 16, 17, 18,
+  ].map((width) => ({ width }));
   ws.mergeCells(`A1:${ultima}1`);
   const t = ws.getCell('A1');
   t.value = 'PAINEL DE MATERIAIS';
@@ -125,9 +137,10 @@ export async function planilha(
   for (const m of materiais) ws.addRow(linha(m, porId, c));
   ws.getColumn(4).numFmt = '0.000';
   ws.getColumn(8).numFmt = '#,##0.00##';
-  ws.getColumn(10).numFmt = '"R$" #,##0.00';
-  ws.getColumn(11).numFmt = '#,##0.###';
-  ws.getColumn(12).numFmt = '"R$" #,##0.00';
+  ws.getColumn(12).numFmt = '#,##0.00##';
+  ws.getColumn(14).numFmt = '"R$" #,##0.00';
+  ws.getColumn(15).numFmt = '#,##0.###';
+  ws.getColumn(16).numFmt = '"R$" #,##0.00';
   ws.autoFilter = { from: 'A4', to: `${ultima}4` };
   const buffer = await wb.xlsx.writeBuffer();
   return new Blob([buffer], {

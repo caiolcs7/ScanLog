@@ -18,11 +18,13 @@ import {
   lerNumero,
   local,
   MOEDAS,
+  ofertas,
   ORDEM_MOEDAS,
   paraCampo,
   peso,
   quantidade,
   reais,
+  temPreco,
 } from './format';
 import { diferencas } from './mudanca';
 import { FornecedorForm } from './Fornecedores';
@@ -32,6 +34,9 @@ type Campos = {
   preco: string;
   moeda: Moeda;
   fornecedor: string;
+  preco2: string;
+  moeda2: Moeda;
+  fornecedor2: string;
   quantidade: string;
   descricao: string;
   tipo: '' | Tipo;
@@ -41,6 +46,9 @@ const deMaterial = (m?: Material): Campos => ({
   preco: paraCampo(m?.preco ?? null),
   moeda: m?.moeda ?? 'BRL',
   fornecedor: m?.fornecedor_id != null ? String(m.fornecedor_id) : '',
+  preco2: paraCampo(m?.preco2 ?? null),
+  moeda2: m?.moeda2 ?? 'BRL',
+  fornecedor2: m?.fornecedor2_id != null ? String(m.fornecedor2_id) : '',
   quantidade: paraCampo(m?.quantidade ?? null),
   descricao: m?.descricao ?? '',
   tipo: m?.tipo ?? '',
@@ -53,23 +61,47 @@ const foto = (m: Material): Foto => ({
   fornecedor_id: m.fornecedor_id,
   preco: m.preco,
   moeda: m.moeda,
+  fornecedor2_id: m.fornecedor2_id,
+  preco2: m.preco2,
+  moeda2: m.moeda2,
   quantidade: m.quantidade,
 });
 /** Valida os campos e devolve a foto nova, ou o erro para mostrar. */
 function lerCampos(c: Campos): Foto | string {
   const preco = lerNumero(c.preco),
+    preco2 = lerNumero(c.preco2),
     qtd = lerNumero(c.quantidade),
     g = lerNumero(c.peso);
   if (Number.isNaN(preco) || (preco ?? 0) > 1e10)
-    return 'Preço inválido. Use só números, como 12,50.';
+    return 'Preço do fornecedor 1 inválido. Use só números, como 12,50.';
+  if (Number.isNaN(preco2) || (preco2 ?? 0) > 1e10)
+    return 'Preço do fornecedor 2 inválido. Use só números, como 12,50.';
+  if (c.fornecedor && c.fornecedor === c.fornecedor2)
+    return 'Escolha fornecedores diferentes no 1 e no 2.';
   if (Number.isNaN(qtd) || (qtd ?? 0) > 1e10)
     return 'Quantidade inválida. Use só números.';
   if (Number.isNaN(g) || g === 0 || (g ?? 0) > 1e8)
     return 'Peso inválido. Digite em gramas, como 235.';
+  const um = {
+      fornecedor_id: c.fornecedor ? Number(c.fornecedor) : null,
+      preco,
+      moeda: preco == null ? null : c.moeda,
+    },
+    dois = {
+      fornecedor_id: c.fornecedor2 ? Number(c.fornecedor2) : null,
+      preco: preco2,
+      moeda: preco2 == null ? null : c.moeda2,
+    };
+  // Sem o 1, o 2 sobe para o lugar dele.
+  const [a, b] =
+    um.fornecedor_id == null && um.preco == null ? [dois, um] : [um, dois];
   return {
-    preco,
-    moeda: preco == null ? null : c.moeda,
-    fornecedor_id: c.fornecedor ? Number(c.fornecedor) : null,
+    fornecedor_id: a.fornecedor_id,
+    preco: a.preco,
+    moeda: a.moeda,
+    fornecedor2_id: b.fornecedor_id,
+    preco2: b.preco,
+    moeda2: b.moeda,
     quantidade: qtd,
     descricao: c.descricao.trim() || null,
     tipo: c.tipo || null,
@@ -93,7 +125,7 @@ export function Ficha({
     mudancasDe(m.codigo).then(setHist, () => setHist([]));
   }, [m.codigo, m.atualizado_em]);
   const r = emReais(m, ctx.cambio),
-    f = m.fornecedor_id != null ? ctx.porId.get(m.fornecedor_id) : undefined;
+    lista = ofertas(m);
 
   return (
     <Janela fechar={fechar} classe="gs" rotulo={`Material ${m.codigo}`}>
@@ -101,7 +133,7 @@ export function Ficha({
         <div className="gs-hd">
           <p className="gs-code mono">{m.codigo}</p>
           <p className="gs-sub">
-            {m.preco != null ? (
+            {temPreco(m) ? (
               <span className="pill" data-s="ok">
                 Com preço
               </span>
@@ -146,31 +178,46 @@ export function Ficha({
       ) : (
         <>
           <dl className="ficha">
-            <div>
-              <dt>Preço unitário</dt>
-              <dd className="mono">
-                {m.preco != null && m.moeda ? dinheiro(m.preco, m.moeda) : '—'}
-                {m.moeda &&
-                  m.moeda !== 'BRL' &&
-                  r != null &&
-                  Number.isFinite(r) && <small>≈ {reais(r)}</small>}
-              </dd>
-            </div>
-            <div>
-              <dt>Fornecedor</dt>
-              <dd>
-                {f ? (
-                  <>
-                    {f.nome}{' '}
-                    <span className="tag">
-                      {f.origem === 'nacional' ? 'Nacional' : 'Internacional'}
+            {(lista.length ? lista : [null]).map((o) => {
+              const f =
+                o?.fornecedor_id != null
+                  ? ctx.porId.get(o.fornecedor_id)
+                  : undefined;
+              const rs =
+                o?.preco != null && o.moeda
+                  ? o.preco * ctx.cambio[o.moeda].valor
+                  : null;
+              return (
+                <div key={o?.n ?? 0} className="ficha-of">
+                  <dt>
+                    {lista.length > 1 ? `Fornecedor ${o!.n}` : 'Fornecedor'}
+                  </dt>
+                  <dd>
+                    {f ? (
+                      <>
+                        {f.nome}{' '}
+                        <span className="tag">
+                          {f.origem === 'nacional'
+                            ? 'Nacional'
+                            : 'Internacional'}
+                        </span>
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                    <span className="mono ficha-p">
+                      {o?.preco != null && o.moeda
+                        ? dinheiro(o.preco, o.moeda)
+                        : 'Sem preço'}
+                      {o?.moeda &&
+                        o.moeda !== 'BRL' &&
+                        rs != null &&
+                        Number.isFinite(rs) && <small>≈ {reais(rs)}</small>}
                     </span>
-                  </>
-                ) : (
-                  '—'
-                )}
-              </dd>
-            </div>
+                  </dd>
+                </div>
+              );
+            })}
             <div>
               <dt>Quantidade</dt>
               <dd className="mono">
@@ -289,74 +336,85 @@ function Formulario({
   c: Campos;
   setC: (c: Campos) => void;
 }) {
-  const [novoF, setNovoF] = useState(false);
-  const preco = lerNumero(c.preco),
-    r =
-      preco != null && !Number.isNaN(preco)
-        ? preco * ctx.cambio[c.moeda].valor
-        : null;
+  const [novoF, setNovoF] = useState<'' | '2' | null>(null);
   const muda = <K extends keyof Campos>(k: K, v: Campos[K]) =>
     setC({ ...c, [k]: v });
+  const bloco = (k: '' | '2') => {
+    const preco = lerNumero(c[`preco${k}`]),
+      moeda = c[`moeda${k}`],
+      r =
+        preco != null && !Number.isNaN(preco)
+          ? preco * ctx.cambio[moeda].valor
+          : null,
+      n = k ? 2 : 1;
+    return (
+      <fieldset className="fm-of" key={n}>
+        <legend>Fornecedor {n}</legend>
+        <div className="fm-g">
+          <div className="fm-row">
+            <select
+              value={c[`fornecedor${k}`]}
+              onChange={(e) => muda(`fornecedor${k}`, e.target.value)}
+              aria-label={`Fornecedor ${n}`}
+            >
+              <option value="">Sem fornecedor</option>
+              {ctx.dados.fornecedores.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nome} ·{' '}
+                  {f.origem === 'nacional' ? 'Nacional' : 'Internacional'}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn-ghost-s"
+              onClick={() => setNovoF(k)}
+            >
+              <Plus aria-hidden /> Novo
+            </button>
+          </div>
+        </div>
+        <div className="fm-2">
+          <label>
+            Preço unitário
+            <input
+              inputMode="decimal"
+              value={c[`preco${k}`]}
+              onChange={(e) => muda(`preco${k}`, e.target.value)}
+              placeholder="0,00"
+              className="mono"
+              aria-label={`Preço unitário do fornecedor ${n}`}
+            />
+            <span className="hint">
+              {moeda !== 'BRL' && r != null && Number.isFinite(r)
+                ? `≈ ${reais(r)} hoje`
+                : ' '}
+            </span>
+          </label>
+          <div className="fm-g">
+            <span className="fm-l">Moeda</span>
+            <Seg
+              rotulo={`Moeda do fornecedor ${n}`}
+              valor={moeda}
+              mudar={(v) => muda(`moeda${k}`, v)}
+              opcoes={ORDEM_MOEDAS.map((q) => ({
+                id: q,
+                nome: (
+                  <>
+                    <b className="mono">{MOEDAS[q].simbolo}</b> {MOEDAS[q].nome}
+                  </>
+                ),
+              }))}
+            />
+          </div>
+        </div>
+      </fieldset>
+    );
+  };
   return (
     <>
-      <div className="fm-2">
-        <label>
-          Preço unitário
-          <input
-            inputMode="decimal"
-            value={c.preco}
-            onChange={(e) => muda('preco', e.target.value)}
-            placeholder="0,00"
-            className="mono"
-          />
-          <span className="hint">
-            {c.moeda !== 'BRL' && r != null && Number.isFinite(r)
-              ? `≈ ${reais(r)} hoje`
-              : ' '}
-          </span>
-        </label>
-        <div className="fm-g">
-          <span className="fm-l">Moeda</span>
-          <Seg
-            rotulo="Moeda"
-            valor={c.moeda}
-            mudar={(v) => muda('moeda', v)}
-            opcoes={ORDEM_MOEDAS.map((k) => ({
-              id: k,
-              nome: (
-                <>
-                  <b className="mono">{MOEDAS[k].simbolo}</b> {MOEDAS[k].nome}
-                </>
-              ),
-            }))}
-          />
-        </div>
-      </div>
-      <div className="fm-g">
-        <span className="fm-l">Fornecedor</span>
-        <div className="fm-row">
-          <select
-            value={c.fornecedor}
-            onChange={(e) => muda('fornecedor', e.target.value)}
-            aria-label="Fornecedor"
-          >
-            <option value="">Sem fornecedor</option>
-            {ctx.dados.fornecedores.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nome} ·{' '}
-                {f.origem === 'nacional' ? 'Nacional' : 'Internacional'}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="btn-ghost-s"
-            onClick={() => setNovoF(true)}
-          >
-            <Plus aria-hidden /> Novo
-          </button>
-        </div>
-      </div>
+      {bloco('')}
+      {bloco('2')}
       <div className="fm-2">
         <label>
           <span>
@@ -402,12 +460,13 @@ function Formulario({
           rows={2}
         />
       </label>
-      {novoF && (
+      {novoF != null && (
         <FornecedorForm
           ctx={ctx}
           fechar={(f) => {
-            setNovoF(false);
-            if (f) setC({ ...c, fornecedor: String(f.id) });
+            const k = novoF;
+            setNovoF(null);
+            if (f) setC({ ...c, [`fornecedor${k}`]: String(f.id) });
           }}
         />
       )}

@@ -1416,6 +1416,11 @@ button.hm-c:hover {
   gap: 3px;
   min-width: 0;
 }
+.vaga.longa {
+  font-size: 12px;
+  letter-spacing: 0;
+  min-width: 64px;
+}
 .vaga {
   flex: none;
   align-self: flex-start;
@@ -2021,4 +2026,30 @@ button.hm-c:hover {
   .gira {
     animation: none;
   }
+}
+
+/* Fornecedor 1 e 2 (ficha e formulário) */
+.ficha-p {
+  display: block;
+  margin-top: 2px;
+}
+.ficha-p small {
+  display: inline;
+  margin-left: 6px;
+}
+.fm-of {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px 12px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.fm-of legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
 }

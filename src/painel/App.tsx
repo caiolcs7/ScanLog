@@ -14,7 +14,7 @@ import {
   type Material,
   type Sessao,
 } from './api';
-import { cambio, inteiro, porcento, ruaDe } from './format';
+import { cambio, inteiro, porcento, ruaDe, temPreco } from './format';
 import { Luz } from './Luz';
 import { Resumo } from './Resumo';
 import { Lista, filtroVazio, type Filtro } from './Lista';
@@ -160,13 +160,13 @@ export function App() {
   const cot = useMemo(() => cambio(dados?.cotacoes ?? []), [dados?.cotacoes]);
   const ruas = useMemo(() => {
     const r = new Map<string, { total: number; comPreco: number }>();
-    for (let n = 1; n <= 17; n++)
+    for (let n = 1; n <= 21; n++)
       r.set(`R${String(n).padStart(2, '0')}`, { total: 0, comPreco: 0 });
     for (const m of dados?.materiais ?? [])
       for (const rua of new Set(m.locais.map(ruaDe))) {
         const x = r.get(rua) ?? { total: 0, comPreco: 0 };
         x.total++;
-        if (m.preco != null) x.comPreco++;
+        if (temPreco(m)) x.comPreco++;
         r.set(rua, x);
       }
     return [...r]
@@ -196,7 +196,7 @@ export function App() {
   };
 
   const total = dados?.materiais.length ?? 0,
-    comPreco = dados?.materiais.filter((m) => m.preco != null).length ?? 0;
+    comPreco = dados?.materiais.filter(temPreco).length ?? 0;
   const material = aberto
     ? dados?.materiais.find((m) => m.codigo === aberto)
     : undefined;
