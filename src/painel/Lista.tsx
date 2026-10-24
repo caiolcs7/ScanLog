@@ -15,6 +15,8 @@ import { downloadBlob } from '../services/download';
 import {
   dinheiro,
   emReais,
+  completo,
+  enderecos,
   inteiro,
   local,
   MOEDAS,
@@ -543,9 +545,15 @@ function Linha({
       )
       .filter((x): x is string => !!x);
   const v = vagas?.[0];
+  // Ao lado do código, o endereço completo; na rua, só os desta rua.
+  const ends = vagas
+    ? enderecos(vagas.map((x) => x.local))
+    : enderecos(m.locais);
+  // "também em": outros galões da rua (os endereços completos já aparecem).
   const outras =
     vagas
       ?.slice(1)
+      .filter((x) => !completo(x.local))
       .map((x) =>
         x.andar === v?.andar ? x.rotulo : `${x.andar} ${x.rotulo}`,
       ) ?? [];
@@ -564,33 +572,28 @@ function Linha({
           </span>
         )}
         <span className="mat-a">
-          <span className="mat-c mono">{m.codigo}</span>
+          <span className="mat-cod">
+            <span className="mat-c mono">{m.codigo}</span>
+            {ends.slice(0, 2).map((l) => (
+              <span key={l} className="mat-e mono" title={local(l)}>
+                {l}
+              </span>
+            ))}
+            {ends.length > 2 && (
+              <span className="mat-e mais">+{ends.length - 2}</span>
+            )}
+          </span>
           <span className="mat-d">{m.descricao ?? 'Sem descrição'}</span>
           <span className="mat-l">
             {m.tipo && <span className="tag">{m.tipo}</span>}
-            {vagas ? (
-              <>
-                {outras.length > 0 && (
-                  <span className="tag tag-l">
-                    também em{' '}
-                    <span className="mono">
-                      {outras.slice(0, 4).join(', ')}
-                      {outras.length > 4 && ` +${outras.length - 4}`}
-                    </span>
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                {m.locais.slice(0, 2).map((l) => (
-                  <span key={l} className="tag tag-l mono">
-                    {local(l)}
-                  </span>
-                ))}
-                {m.locais.length > 2 && (
-                  <span className="tag">+{m.locais.length - 2}</span>
-                )}
-              </>
+            {outras.length > 0 && (
+              <span className="tag tag-l">
+                também em{' '}
+                <span className="mono">
+                  {outras.slice(0, 4).join(', ')}
+                  {outras.length > 4 && ` +${outras.length - 4}`}
+                </span>
+              </span>
             )}
           </span>
         </span>

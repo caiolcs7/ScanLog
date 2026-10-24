@@ -13,6 +13,7 @@ import {
 import type { Contexto } from './App';
 import {
   dinheiro,
+  emOrdem,
   emReais,
   haQuanto,
   lerNumero,
@@ -158,9 +159,10 @@ export function Ficha({
       <p className="gs-desc">{m.descricao ?? 'Sem descrição'}</p>
       {m.locais.length > 0 && (
         <div className="gs-loc">
-          {m.locais.map((l) => (
-            <span key={l} className="tag tag-l mono">
-              {local(l)}
+          {emOrdem(m.locais).map((l) => (
+            <span key={l} className="tag tag-l gs-end">
+              <b className="mono">{l}</b>
+              <small>{local(l)}</small>
             </span>
           ))}
         </div>

@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { Fornecedor, Material } from './api';
-import { emReais, local, MOEDAS, type Cambio } from './format';
+import { emOrdem, emReais, MOEDAS, type Cambio } from './format';
 
 const origem = (f?: Fornecedor) =>
   f ? (f.origem === 'nacional' ? 'Nacional' : 'Internacional') : '';
@@ -21,7 +21,7 @@ export const colunas = [
   'Descrição',
   'Tipo',
   'Peso (kg)',
-  'Localização',
+  'Endereço completo',
   'Fornecedor 1',
   'Nacional / Internacional 1',
   'Preço unitário 1',
@@ -47,7 +47,7 @@ export function linha(m: Material, porId: Map<number, Fornecedor>, c: Cambio) {
     m.descricao ?? '',
     m.tipo ?? '',
     m.peso_g != null ? m.peso_g / 1000 : '',
-    m.locais.map(local).join(', '),
+    emOrdem(m.locais).join(', '),
     f?.nome ?? '',
     origem(f),
     m.preco ?? '',
