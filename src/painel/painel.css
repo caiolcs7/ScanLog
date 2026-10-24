@@ -1455,6 +1455,27 @@ button.hm-c:hover {
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
+.mat-t {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+/* Endereço completo ao lado do código (R14A1C01DP01) */
+.mat-e {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.mat-e.mais {
+  background: var(--sunk);
+  color: var(--muted);
+}
 .mat-d {
   font-size: 13.5px;
   color: var(--muted);

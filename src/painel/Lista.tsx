@@ -15,8 +15,8 @@ import { downloadBlob } from '../services/download';
 import {
   dinheiro,
   emReais,
+  enderecos,
   inteiro,
-  local,
   MOEDAS,
   oferta,
   ofertas,
@@ -441,6 +441,7 @@ export function Lista({
                       key={it.m.codigo}
                       m={it.m}
                       vagas={rua ? it.vagas : null}
+                      onde={rua + filtro.andar}
                       ctx={ctx}
                     />
                   ))}
@@ -528,11 +529,14 @@ function EscolherRua({
 function Linha({
   m,
   vagas,
+  onde,
   ctx,
 }: {
   m: Material;
   /** Na rua: as posições do material nela, a primeira em destaque. */
   vagas: Vaga[] | null;
+  /** Rua (e andar) aberta: só os endereços de lá aparecem. */
+  onde: string;
   ctx: Contexto;
 }) {
   const r = emReais(m, ctx.cambio),
@@ -543,9 +547,12 @@ function Linha({
       )
       .filter((x): x is string => !!x);
   const v = vagas?.[0];
+  const ends = enderecos(m.locais, onde);
+  // Outros galões na rua; as prateleiras já aparecem por extenso ao lado do código.
   const outras =
     vagas
       ?.slice(1)
+      .filter((x) => x.letra !== 'S')
       .map((x) =>
         x.andar === v?.andar ? x.rotulo : `${x.andar} ${x.rotulo}`,
       ) ?? [];
@@ -564,33 +571,28 @@ function Linha({
           </span>
         )}
         <span className="mat-a">
-          <span className="mat-c mono">{m.codigo}</span>
+          <span className="mat-t">
+            <span className="mat-c mono">{m.codigo}</span>
+            {ends.slice(0, 3).map((e) => (
+              <span key={e} className="mat-e mono">
+                {e}
+              </span>
+            ))}
+            {ends.length > 3 && (
+              <span className="mat-e mais">+{ends.length - 3}</span>
+            )}
+          </span>
           <span className="mat-d">{m.descricao ?? 'Sem descrição'}</span>
           <span className="mat-l">
             {m.tipo && <span className="tag">{m.tipo}</span>}
-            {vagas ? (
-              <>
-                {outras.length > 0 && (
-                  <span className="tag tag-l">
-                    também em{' '}
-                    <span className="mono">
-                      {outras.slice(0, 4).join(', ')}
-                      {outras.length > 4 && ` +${outras.length - 4}`}
-                    </span>
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                {m.locais.slice(0, 2).map((l) => (
-                  <span key={l} className="tag tag-l mono">
-                    {local(l)}
-                  </span>
-                ))}
-                {m.locais.length > 2 && (
-                  <span className="tag">+{m.locais.length - 2}</span>
-                )}
-              </>
+            {outras.length > 0 && (
+              <span className="tag tag-l">
+                também em{' '}
+                <span className="mono">
+                  {outras.slice(0, 4).join(', ')}
+                  {outras.length > 4 && ` +${outras.length - 4}`}
+                </span>
+              </span>
             )}
           </span>
         </span>

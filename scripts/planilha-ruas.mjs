@@ -9,7 +9,8 @@
 //   "fornecedor". Se os dois têm o mesmo nome, é um só (Nacional).
 // - Saldo, pedidos e demais números de estoque não entram.
 // - Quem já está em ruas.json mantém descrição, tipo, peso e localizações do
-//   Relatório; só ganha localizações de ruas/andares que ainda não tinha.
+//   Relatório (galões); ganha todo endereço de prateleira da planilha que ainda
+//   não tinha, para o painel mostrar o endereço completo (R14A1C01DP01).
 import fs from 'node:fs';
 
 const [, , arquivo, ...args] = process.argv;
@@ -149,7 +150,6 @@ function fornecedores(imp, nac) {
 const base = new Map(
   JSON.parse(fs.readFileSync(DESTINO, 'utf8')).map((m) => [m.codigo, m]),
 );
-const ruaAndar = (l) => l.slice(0, 5);
 const grafia = new Map(); // maiúsculas → grafia mais comum
 const contagem = new Map();
 for (const l of dados)
@@ -213,9 +213,9 @@ for (const l of dados) {
       };
   if (antigo) {
     r.ja++;
-    const tem = new Set(item.locais.map(ruaAndar));
+    const tem = new Set(item.locais);
     for (const e of ends)
-      if (!tem.has(ruaAndar(e))) {
+      if (!tem.has(e)) {
         item.locais.push(e);
         r.locais_extra++;
       }

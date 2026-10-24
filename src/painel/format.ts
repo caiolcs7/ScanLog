@@ -63,6 +63,16 @@ export function local(l: string) {
     ? `${p[1]} · ${p[2]} · Col ${p[3].replace(/^C(?=\d)/, '')} · ${LADO[p[4]]} · ${p[5] === 'P' ? 'Prat' : 'Galão'} ${p[6]}`
     : l;
 }
+/**
+ * Endereços completos do material para mostrar ao lado do código: os de
+ * prateleira ("R14A1C01DP01"); sem nenhum, os galões ("R07A1G05"). Com
+ * `onde` (rua ou rua+andar, "R14" / "R14A1"), só os de lá.
+ */
+export function enderecos(locais: string[], onde = '') {
+  const aqui = locais.filter((l) => l.startsWith(onde));
+  const prat = aqui.filter((l) => PRATELEIRA.test(l));
+  return prat.length ? prat : aqui;
+}
 /** Posição dentro da rua, para ordenar a lista: galões e caixas, depois prateleiras. */
 export type Vaga = { andar: string; letra: string; n: number; rotulo: string };
 export function vaga(l: string): Vaga | null {

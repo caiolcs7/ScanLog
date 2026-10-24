@@ -159,8 +159,8 @@ export function Ficha({
       {m.locais.length > 0 && (
         <div className="gs-loc">
           {m.locais.map((l) => (
-            <span key={l} className="tag tag-l mono">
-              {local(l)}
+            <span key={l} className="tag tag-l mono" title={local(l)}>
+              {l}
             </span>
           ))}
         </div>
