@@ -63,8 +63,26 @@ export function local(l: string) {
     ? `${p[1]} · ${p[2]} · Col ${p[3].replace(/^C(?=\d)/, '')} · ${LADO[p[4]]} · ${p[5] === 'P' ? 'Prat' : 'Galão'} ${p[6]}`
     : l;
 }
+/** Endereço completo de prateleira, como no sistema: "R14A1C01DP01". */
+export const completo = (l: string) => PRATELEIRA.test(l);
+/** Endereços para mostrar ao lado do código: os completos; sem nenhum, os que houver. */
+export function enderecos(locais: string[]) {
+  const c = locais.filter(completo);
+  return c.length ? c : locais;
+}
+/** Todos os endereços, os completos primeiro. */
+export const emOrdem = (locais: string[]) => [
+  ...locais.filter(completo),
+  ...locais.filter((l) => !completo(l)),
+];
 /** Posição dentro da rua, para ordenar a lista: galões e caixas, depois prateleiras. */
-export type Vaga = { andar: string; letra: string; n: number; rotulo: string };
+export type Vaga = {
+  andar: string;
+  letra: string;
+  n: number;
+  rotulo: string;
+  local: string;
+};
 export function vaga(l: string): Vaga | null {
   const g = GALAO.exec(l);
   if (g)
@@ -73,6 +91,7 @@ export function vaga(l: string): Vaga | null {
       letra: g[3],
       n: Number(g[4]),
       rotulo: `${g[3]}${g[4].padStart(2, '0')}`,
+      local: l,
     };
   const p = PRATELEIRA.exec(l);
   if (!p) return null;
@@ -82,6 +101,7 @@ export function vaga(l: string): Vaga | null {
     letra: 'S',
     n: col * 100000 + 'EDC'.indexOf(p[4]) * 10000 + Number(p[6]),
     rotulo: `${p[3]}${p[4]}${p[5]}${p[6]}`,
+    local: l,
   };
 }
 export const ruaDe = (l: string) => l.slice(0, 3);

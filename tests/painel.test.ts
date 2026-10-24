@@ -3,7 +3,9 @@ import type { Cotacao, Fornecedor, Material } from '../src/painel/api';
 import {
   cambio,
   dinheiro,
+  emOrdem,
   emReais,
+  enderecos,
   lerNumero,
   local,
   oferta,
@@ -46,6 +48,14 @@ describe('painel: números', () => {
     expect(local('R18A2CASEP10')).toBe('R18 · A2 · Col CAS · Esq · Prat 10');
     expect(vaga('R18A1C06DP02')).toMatchObject({ andar: 'A1', letra: 'S' });
     expect(vaga('R07A1G05')).toMatchObject({ andar: 'A1', letra: 'G' });
+  });
+  it('mostra o endereço completo; sem ele, o galão', () => {
+    expect(enderecos(['R14A1G01', 'R14A1C01DP01'])).toEqual(['R14A1C01DP01']);
+    expect(enderecos(['R17A1G03'])).toEqual(['R17A1G03']);
+    expect(emOrdem(['R14A1G01', 'R14A1C01DP01'])).toEqual([
+      'R14A1C01DP01',
+      'R14A1G01',
+    ]);
   });
 });
 
@@ -155,6 +165,14 @@ describe('painel: códigos das ruas', () => {
       expect(r.locais.length).toBeGreaterThan(0);
       for (const l of r.locais) expect(l).toMatch(/^R\d{2}A[12][A-Z0-9]+$/);
     }
+  });
+  it('quem tem galão do Relatório também tem o endereço completo', () => {
+    const r = ruas.find((m) => m.codigo === 'CC100004042')!;
+    expect(r.locais).toEqual(['R16A2G87', 'R16A2C06EP01']);
+    const sem = ruas.filter(
+      (m) => !m.locais.some((l) => vaga(l)?.letra === 'S'),
+    );
+    expect(sem.length).toBeLessThan(10);
   });
   it('só tem fornecedor 2 se tem o 1, e os dois são diferentes', () => {
     const origem = ['nacional', 'internacional'];

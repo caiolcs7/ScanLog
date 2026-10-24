@@ -7,9 +7,11 @@
 // - Cada código pode ter 2 fornecedores: o fabricante importado (Internacional)
 //   vai em "fornecedor" e o nacional em "fornecedor2". Se só há um, vai em
 //   "fornecedor". Se os dois têm o mesmo nome, é um só (Nacional).
+// - Todo código ganha o endereço completo da planilha (R14A1C01DP01), mesmo
+//   quem já tinha o galão do Relatório (R14A1G01) naquela rua.
 // - Saldo, pedidos e demais números de estoque não entram.
 // - Quem já está em ruas.json mantém descrição, tipo, peso e localizações do
-//   Relatório; só ganha localizações de ruas/andares que ainda não tinha.
+//   Relatório e ganha os endereços da planilha que ainda não tinha.
 import fs from 'node:fs';
 
 const [, , arquivo, ...args] = process.argv;
@@ -149,7 +151,6 @@ function fornecedores(imp, nac) {
 const base = new Map(
   JSON.parse(fs.readFileSync(DESTINO, 'utf8')).map((m) => [m.codigo, m]),
 );
-const ruaAndar = (l) => l.slice(0, 5);
 const grafia = new Map(); // maiúsculas → grafia mais comum
 const contagem = new Map();
 for (const l of dados)
@@ -213,9 +214,9 @@ for (const l of dados) {
       };
   if (antigo) {
     r.ja++;
-    const tem = new Set(item.locais.map(ruaAndar));
+    const tem = new Set(item.locais);
     for (const e of ends)
-      if (!tem.has(ruaAndar(e))) {
+      if (!tem.has(e)) {
         item.locais.push(e);
         r.locais_extra++;
       }
