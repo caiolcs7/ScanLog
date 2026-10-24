@@ -10,18 +10,29 @@ export function diferencas(
 ) {
   const a = antes ?? {},
     linhas: { campo: string; de: string; para: string }[] = [];
-  const preco = (f: Partial<Foto>) =>
-    f.preco != null && f.moeda ? dinheiro(f.preco, f.moeda) : NADA;
-  if (preco(a) !== preco(depois))
-    linhas.push({ campo: 'Preço', de: preco(a), para: preco(depois) });
   const forn = (id?: number | null) =>
     id == null ? NADA : (porId.get(id)?.nome ?? `#${id}`);
-  if ((a.fornecedor_id ?? null) !== (depois.fornecedor_id ?? null))
-    linhas.push({
-      campo: 'Fornecedor',
-      de: forn(a.fornecedor_id),
-      para: forn(depois.fornecedor_id),
-    });
+  for (const k of ['', '2'] as const) {
+    const rotulo = k ? ' 2' : '';
+    const preco = (f: Partial<Foto>) => {
+      const p = f[`preco${k}`],
+        m = f[`moeda${k}`];
+      return p != null && m ? dinheiro(p, m) : NADA;
+    };
+    if (preco(a) !== preco(depois))
+      linhas.push({
+        campo: `Preço${rotulo}`,
+        de: preco(a),
+        para: preco(depois),
+      });
+    const id = `fornecedor${k}_id` as const;
+    if ((a[id] ?? null) !== (depois[id] ?? null))
+      linhas.push({
+        campo: `Fornecedor${rotulo}`,
+        de: forn(a[id]),
+        para: forn(depois[id]),
+      });
+  }
   const q = (n?: number | null) => (n == null ? NADA : quantidade(n));
   if ((a.quantidade ?? null) !== (depois.quantidade ?? null))
     linhas.push({

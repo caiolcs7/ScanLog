@@ -34,7 +34,7 @@ export const porcento = (parte: number, total: number) =>
   `${pct.format(total ? (parte / total) * 100 : 0)}%`;
 export const quantidade = (n: number) => n3.format(n);
 export const peso = (g: number) =>
-  g >= 1000 || g % 1 ? `${n3.format(g / 1000)} kg` : `${n0.format(g)} g`;
+  g >= 1000 ? `${n3.format(g / 1000)} kg` : `${n3.format(g)} g`;
 
 /** Aceita "1.234,56", "1234,56" ou "1234.56". */
 export function lerNumero(texto: string): number | null {
@@ -47,10 +47,42 @@ export function lerNumero(texto: string): number | null {
 export const paraCampo = (n: number | null) =>
   n == null ? '' : num(0, 4).format(n).replace(/\./g, '');
 
-/** "R07A1G05" → "R07 · A1 · G05". */
+/**
+ * Endereços do sistema de estoque: galão/caixa ("R07A1G05") ou prateleira
+ * ("R18A1C06DP02" = rua, andar, coluna, lado, prateleira ou galão, número).
+ */
+const GALAO = /^(R\d{2})(A\d)([A-Z])(\d+)$/;
+const PRATELEIRA = /^(R\d{2})(A\d)(C\d{2}|[A-Z0-9]{3})([DEC])([PG])(\d{2})$/;
+const LADO: Record<string, string> = { D: 'Dir', E: 'Esq', C: 'Centro' };
+/** "R07A1G05" → "R07 · A1 · G05"; "R18A1C06DP02" → "R18 · A1 · Col 06 · Dir · Prat 02". */
 export function local(l: string) {
-  const m = /^(R\d{2})(A\d)([A-Z])(\d+)$/.exec(l);
-  return m ? `${m[1]} · ${m[2]} · ${m[3]}${m[4].padStart(2, '0')}` : l;
+  const m = GALAO.exec(l);
+  if (m) return `${m[1]} · ${m[2]} · ${m[3]}${m[4].padStart(2, '0')}`;
+  const p = PRATELEIRA.exec(l);
+  return p
+    ? `${p[1]} · ${p[2]} · Col ${p[3].replace(/^C(?=\d)/, '')} · ${LADO[p[4]]} · ${p[5] === 'P' ? 'Prat' : 'Galão'} ${p[6]}`
+    : l;
+}
+/** Posição dentro da rua, para ordenar a lista: galões e caixas, depois prateleiras. */
+export type Vaga = { andar: string; letra: string; n: number; rotulo: string };
+export function vaga(l: string): Vaga | null {
+  const g = GALAO.exec(l);
+  if (g)
+    return {
+      andar: g[2],
+      letra: g[3],
+      n: Number(g[4]),
+      rotulo: `${g[3]}${g[4].padStart(2, '0')}`,
+    };
+  const p = PRATELEIRA.exec(l);
+  if (!p) return null;
+  const col = /^C\d{2}$/.test(p[3]) ? Number(p[3].slice(1)) : 900;
+  return {
+    andar: p[2],
+    letra: 'S',
+    n: col * 100000 + 'EDC'.indexOf(p[4]) * 10000 + Number(p[6]),
+    rotulo: `${p[3]}${p[4]}${p[5]}${p[6]}`,
+  };
 }
 export const ruaDe = (l: string) => l.slice(0, 3);
 export type RuaResumo = { rua: string; total: number; comPreco: number };
@@ -68,8 +100,47 @@ export function cambio(cotacoes: Cotacao[]): Cambio {
       c[q.moeda] = { valor: Number(q.valor), data: q.data };
   return c;
 }
-export const emReais = (m: Material, c: Cambio) =>
-  m.preco == null || !m.moeda ? null : m.preco * c[m.moeda].valor;
+/** Fornecedor 1 e 2 do material, cada um com o seu preço e moeda. */
+export type Oferta = {
+  n: 1 | 2;
+  fornecedor_id: number | null;
+  preco: number | null;
+  moeda: Moeda | null;
+};
+export function ofertas(
+  m: Pick<
+    Material,
+    'fornecedor_id' | 'preco' | 'moeda' | 'fornecedor2_id' | 'preco2' | 'moeda2'
+  >,
+): Oferta[] {
+  const r: Oferta[] = [];
+  if (m.fornecedor_id != null || m.preco != null)
+    r.push({
+      n: 1,
+      fornecedor_id: m.fornecedor_id,
+      preco: m.preco,
+      moeda: m.moeda,
+    });
+  if (m.fornecedor2_id != null || m.preco2 != null)
+    r.push({
+      n: 2,
+      fornecedor_id: m.fornecedor2_id,
+      preco: m.preco2,
+      moeda: m.moeda2,
+    });
+  return r;
+}
+/** Preço usado nas contas: o do fornecedor 1; se não tiver, o do 2. */
+export const oferta = (m: Parameters<typeof ofertas>[0]) =>
+  ofertas(m).find((o) => o.preco != null && o.moeda) ?? null;
+export const temPreco = (m: Parameters<typeof ofertas>[0]) => oferta(m) != null;
+/** O material tem esse fornecedor em algum dos dois lugares? */
+export const temFornecedor = (m: Parameters<typeof ofertas>[0], id: number) =>
+  m.fornecedor_id === id || m.fornecedor2_id === id;
+export const emReais = (m: Parameters<typeof ofertas>[0], c: Cambio) => {
+  const o = oferta(m);
+  return o ? o.preco! * c[o.moeda!].valor : null;
+};
 
 export const dataCurta = (iso: string) =>
   new Date(`${iso.length === 10 ? `${iso}T12:00` : iso}`).toLocaleDateString(

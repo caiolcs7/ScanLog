@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { test, expect, type Page, type Route } from '@playwright/test';
 
 /**
@@ -6,6 +7,14 @@ import { test, expect, type Page, type Route } from '@playwright/test';
  */
 const base = 'http://127.0.0.1:4173/teste-subpasta/';
 const HOST = 'https://pygedyytlcplfweibenv.supabase.co';
+const TOTAL = (
+  JSON.parse(
+    readFileSync(
+      new URL('../../src/painel/ruas.json', import.meta.url),
+      'utf8',
+    ),
+  ) as unknown[]
+).length;
 test.use({ serviceWorkers: 'block' });
 
 type Linha = Record<string, unknown>;
@@ -16,6 +25,9 @@ const campos = [
   'fornecedor_id',
   'preco',
   'moeda',
+  'fornecedor2_id',
+  'preco2',
+  'moeda2',
   'quantidade',
 ] as const;
 const foto = (m: Linha) =>
@@ -25,6 +37,7 @@ class PainelMock {
   materiais: Linha[] = [];
   fornecedores: Linha[] = [
     { id: 1, nome: 'WEG', origem: 'nacional', criado_por: 'Caio' },
+    { id: 2, nome: 'ABB', origem: 'internacional', criado_por: 'Caio' },
   ];
   historico: Linha[] = [];
   seq = 10;
@@ -132,8 +145,10 @@ test('painel: carrega as ruas, pede senha, salva com confirmação e desfaz', as
   await expect(page.getByText('Senha incorreta.')).toBeVisible();
   await page.getByLabel('Senha').fill('senha-teste');
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-  await expect(page.getByText('1.393 códigos carregados.')).toBeVisible();
-  expect(nuvem.materiais).toHaveLength(1393);
+  await expect(
+    page.getByText(`${TOTAL.toLocaleString('pt-BR')} códigos carregados.`),
+  ).toBeVisible();
+  expect(nuvem.materiais).toHaveLength(TOTAL);
   await expect(
     page.getByRole('button', { name: 'Editando como Ana' }),
   ).toBeVisible();
@@ -144,12 +159,16 @@ test('painel: carrega as ruas, pede senha, salva com confirmação e desfaz', as
   await page.locator('.mat').first().click();
   const ficha = page.getByRole('dialog', { name: `Material ${codigo}` });
   await ficha.getByRole('button', { name: 'Editar', exact: true }).click();
-  await ficha.getByLabel('Preço unitário').fill('2,5');
-  await ficha.getByRole('radio', { name: /Dólar/ }).click();
+  await ficha.getByLabel('Preço unitário do fornecedor 1').fill('2,5');
+  await ficha.getByRole('radio', { name: /Dólar/ }).first().click();
   await expect(ficha.getByText('≈ R$ 12,50 hoje')).toBeVisible();
   await ficha
-    .getByLabel('Fornecedor')
+    .getByLabel('Fornecedor 1', { exact: true })
     .selectOption({ label: 'WEG · Nacional' });
+  await ficha
+    .getByLabel('Fornecedor 2', { exact: true })
+    .selectOption({ label: 'ABB · Internacional' });
+  await ficha.getByLabel('Preço unitário do fornecedor 2').fill('3');
   await ficha.getByRole('button', { name: 'Salvar', exact: true }).click();
 
   // nada é gravado antes de confirmar
@@ -164,9 +183,13 @@ test('painel: carrega as ruas, pede senha, salva com confirmação e desfaz', as
     preco: 2.5,
     moeda: 'USD',
     fornecedor_id: 1,
+    fornecedor2_id: 2,
+    preco2: 3,
+    moeda2: 'BRL',
   });
 
   await ficha.getByRole('button', { name: 'Desfazer' }).click();
   await expect(page.getByText('Mudança desfeita.')).toBeVisible();
   expect(nuvem.materiais[0].preco).toBeNull();
+  expect(nuvem.materiais[0].fornecedor2_id).toBeNull();
 });

@@ -10,10 +10,13 @@ import {
   haQuanto,
   inteiro,
   MOEDAS,
+  oferta,
+  ofertas,
   ORDEM_MOEDAS,
   porcento,
   reais,
   reaisCurto,
+  temPreco,
   type RuaResumo,
 } from './format';
 import { diferencas } from './mudanca';
@@ -32,41 +35,44 @@ export function Resumo({ ctx, ruas, irPara, desfazer, recarregar }: Props) {
     ms = dados.materiais;
   const [dica, dicaEl] = useDica();
   const n = useMemo(() => {
-    const comPreco = ms.filter((m) => m.preco != null);
+    const comPreco = ms.filter(temPreco);
     const comQtd = comPreco.filter((m) => m.quantidade != null);
     const valor = comQtd.reduce(
       (s, m) => s + (emReais(m, cambio) ?? 0) * (m.quantidade ?? 0),
       0,
     );
     const usados = new Set(
-      ms.map((m) => m.fornecedor_id).filter((x) => x != null),
+      ms
+        .flatMap((m) => ofertas(m).map((o) => o.fornecedor_id))
+        .filter((x) => x != null),
     );
     const tipos = (['MP', 'PI', 'PA'] as const).map((t) => {
       const doTipo = ms.filter((m) => m.tipo === t);
       return {
         t,
         total: doTipo.length,
-        com: doTipo.filter((m) => m.preco != null).length,
+        com: doTipo.filter(temPreco).length,
       };
     });
     const porForn = new Map<number, number>();
     for (const m of ms)
-      if (m.fornecedor_id != null)
-        porForn.set(m.fornecedor_id, (porForn.get(m.fornecedor_id) ?? 0) + 1);
+      for (const o of ofertas(m))
+        if (o.fornecedor_id != null)
+          porForn.set(o.fornecedor_id, (porForn.get(o.fornecedor_id) ?? 0) + 1);
     const fornecedores = [...porForn]
       .map(([id, qtd]) => ({ f: porId.get(id), qtd }))
       .filter((x) => x.f)
       .sort((a, b) => b.qtd - a.qtd);
     const origem = { nacional: 0, internacional: 0, sem: 0 };
     for (const m of comPreco) {
-      const f =
-        m.fornecedor_id != null ? porId.get(m.fornecedor_id) : undefined;
+      const id = oferta(m)!.fornecedor_id;
+      const f = id != null ? porId.get(id) : undefined;
       origem[f ? f.origem : 'sem']++;
     }
     const moedas = Object.fromEntries(
       ORDEM_MOEDAS.map((k) => [
         k,
-        comPreco.filter((m) => m.moeda === k).length,
+        comPreco.filter((m) => oferta(m)!.moeda === k).length,
       ]),
     ) as Record<Moeda, number>;
     const caros = comPreco
@@ -281,8 +287,8 @@ export function Resumo({ ctx, ruas, irPara, desfazer, recarregar }: Props) {
                       <>
                         <b>{m.codigo}</b>
                         <br />
-                        {dinheiro(m.preco!, m.moeda!)}
-                        {m.moeda !== 'BRL' && ` ≈ ${reais(r)}`}
+                        {dinheiro(oferta(m)!.preco!, oferta(m)!.moeda!)}
+                        {oferta(m)!.moeda !== 'BRL' && ` ≈ ${reais(r)}`}
                       </>,
                     )}
                   >
@@ -373,7 +379,7 @@ function Mapa({
       for (const k of new Set(m.locais.map((l) => l.slice(0, 5)))) {
         const x = r.get(k) ?? { t: 0, c: 0 };
         x.t++;
-        if (m.preco != null) x.c++;
+        if (temPreco(m)) x.c++;
         r.set(k, x);
       }
     return r;
@@ -613,9 +619,8 @@ function Vazio({ ctx, recarregar }: { ctx: Contexto; recarregar: () => void }) {
     <div className="panel vazio">
       <p className="h2">Ainda não há códigos no painel</p>
       <p className="msg">
-        Os 1.393 códigos das ruas do Relatório entram com um toque, com
-        descrição, peso e localização. Preço, moeda e fornecedor ficam para
-        vocês preencherem.
+        Os códigos das ruas entram com um toque, com descrição, peso,
+        localização e fornecedores. Preço e moeda ficam para vocês preencherem.
       </p>
       <button
         className="btn"
@@ -665,7 +670,12 @@ function Sincronizar({
           linhas={[
             { campo: 'Localizações', de: 'atuais', para: 'ruas do Relatório' },
             {
-              campo: 'Preço, moeda e fornecedor',
+              campo: 'Fornecedores',
+              de: 'atuais',
+              para: 'só de quem nunca foi editado',
+            },
+            {
+              campo: 'Preço, moeda e quantidade',
               de: 'atuais',
               para: 'não mudam',
             },

@@ -13,6 +13,10 @@ export type Material = {
   fornecedor_id: number | null;
   preco: number | null;
   moeda: Moeda | null;
+  /** Segundo fornecedor (ex.: o nacional), com o seu preço e moeda. */
+  fornecedor2_id: number | null;
+  preco2: number | null;
+  moeda2: Moeda | null;
   quantidade: number | null;
   origem: 'ruas' | 'manual';
   criado_em: string;
@@ -36,6 +40,9 @@ export type Foto = Pick<
   | 'fornecedor_id'
   | 'preco'
   | 'moeda'
+  | 'fornecedor2_id'
+  | 'preco2'
+  | 'moeda2'
   | 'quantidade'
 >;
 export type Mudanca = {
@@ -209,7 +216,7 @@ export const salvarFornecedor = (
     p_origem: origem,
     p_id: id ?? null,
   });
-/** Traz os códigos das ruas do Relatório (sem mexer em preço e fornecedor). */
+/** Traz os códigos das ruas (sem mexer em preço, moeda e quantidade). */
 export async function importarRuas(s: Sessao) {
   const itens = (await import('./ruas.json')).default;
   return rpc<number>('painel_importar', { p_token: s.token, p_itens: itens });

@@ -3,7 +3,7 @@ import { LoaderCircle, Pencil, Plus } from 'lucide-react';
 import { salvarFornecedor, type Fornecedor, type Origem } from './api';
 import type { Contexto } from './App';
 import type { Filtro } from './Lista';
-import { inteiro, semAcento } from './format';
+import { inteiro, ofertas, semAcento } from './format';
 import { Confirmar, Janela, Seg } from './ui';
 
 export function Fornecedores({
@@ -18,12 +18,13 @@ export function Fornecedores({
   const conta = useMemo(() => {
     const c = new Map<number, { total: number; com: number }>();
     for (const m of dados.materiais)
-      if (m.fornecedor_id != null) {
-        const x = c.get(m.fornecedor_id) ?? { total: 0, com: 0 };
-        x.total++;
-        if (m.preco != null) x.com++;
-        c.set(m.fornecedor_id, x);
-      }
+      for (const o of ofertas(m))
+        if (o.fornecedor_id != null) {
+          const x = c.get(o.fornecedor_id) ?? { total: 0, com: 0 };
+          x.total++;
+          if (o.preco != null) x.com++;
+          c.set(o.fornecedor_id, x);
+        }
     return c;
   }, [dados.materiais]);
   const semForn = dados.materiais.filter((m) => m.fornecedor_id == null).length;

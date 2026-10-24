@@ -18,12 +18,18 @@ import {
   inteiro,
   local,
   MOEDAS,
+  oferta,
+  ofertas,
   ORDEM_MOEDAS,
   porcento,
   reais,
   ruaDe,
   semAcento,
+  temFornecedor,
+  temPreco,
   type RuaResumo,
+  type Vaga,
+  vaga,
 } from './format';
 import { NovoCodigo } from './Ficha';
 import { Seg } from './ui';
@@ -49,20 +55,6 @@ export const filtroVazio: Filtro = {
   ordem: 'codigo',
 };
 
-/** Posição dentro da rua: "R07A1G05" → andar A1, G05. */
-type Vaga = { andar: string; letra: string; n: number; rotulo: string };
-const POS = /^R\d{2}(A\d)([A-Z])(\d+)$/;
-function vaga(l: string): Vaga | null {
-  const x = POS.exec(l);
-  return (
-    x && {
-      andar: x[1],
-      letra: x[2],
-      n: Number(x[3]),
-      rotulo: `${x[2]}${x[3].padStart(2, '0')}`,
-    }
-  );
-}
 const antesNaRua = (a: Vaga, b: Vaga) =>
   a.andar.localeCompare(b.andar) || a.letra.localeCompare(b.letra) || a.n - b.n;
 const NOME_ANDAR: Record<string, string> = { A1: 'Andar 1', A2: 'Andar 2' };
@@ -111,14 +103,13 @@ export function Lista({
         (q &&
           !m.codigo.includes(q) &&
           !semAcento(m.descricao ?? '').includes(q)) ||
-        (filtro.situacao &&
-          (filtro.situacao === 'com') !== (m.preco != null)) ||
+        (filtro.situacao && (filtro.situacao === 'com') !== temPreco(m)) ||
         (filtro.tipo && m.tipo !== filtro.tipo) ||
         (filtro.fornecedor &&
           (filtro.fornecedor === 'sem'
-            ? m.fornecedor_id != null
-            : String(m.fornecedor_id) !== filtro.fornecedor)) ||
-        (filtro.moeda && m.moeda !== filtro.moeda)
+            ? ofertas(m).some((o) => o.fornecedor_id != null)
+            : !temFornecedor(m, Number(filtro.fornecedor)))) ||
+        (filtro.moeda && !ofertas(m).some((o) => o.moeda === filtro.moeda))
       )
         continue;
       if (!rua) {
@@ -545,7 +536,12 @@ function Linha({
   ctx: Contexto;
 }) {
   const r = emReais(m, ctx.cambio),
-    f = m.fornecedor_id != null ? ctx.porId.get(m.fornecedor_id) : undefined;
+    o = oferta(m),
+    nomes = ofertas(m)
+      .map((x) =>
+        x.fornecedor_id != null ? ctx.porId.get(x.fornecedor_id)?.nome : null,
+      )
+      .filter((x): x is string => !!x);
   const v = vagas?.[0];
   const outras =
     vagas
@@ -561,7 +557,7 @@ function Linha({
       >
         {vagas && (
           <span
-            className="vaga mono"
+            className={`vaga mono ${v && v.rotulo.length > 4 ? 'longa' : ''}`}
             aria-label={v ? `Posição ${v.rotulo}` : undefined}
           >
             {v ? v.rotulo : '—'}
@@ -599,17 +595,21 @@ function Linha({
           </span>
         </span>
         <span className="mat-b">
-          {m.preco != null && m.moeda ? (
+          {o ? (
             <>
-              <b className="mat-p mono">{dinheiro(m.preco, m.moeda)}</b>
-              {m.moeda !== 'BRL' && r != null && Number.isFinite(r) && (
+              <b className="mat-p mono">{dinheiro(o.preco!, o.moeda!)}</b>
+              {o.moeda !== 'BRL' && r != null && Number.isFinite(r) && (
                 <span className="mat-r mono">≈ {reais(r)}</span>
               )}
-              {f && <span className="mat-f">{f.nome}</span>}
             </>
           ) : (
             <span className="pill pill-sem">Sem preço</span>
           )}
+          {nomes.map((n) => (
+            <span key={n} className="mat-f">
+              {n}
+            </span>
+          ))}
         </span>
         <ChevronRight className="mat-ir" aria-hidden />
       </button>
