@@ -306,24 +306,48 @@ export function Entrar({
   );
 }
 
-/** Dica que segue o dedo ou o mouse sobre uma marca do gráfico. */
+type EstadoDica = { x: number; y: number; texto: ReactNode } | null;
+
+/**
+ * Dica que segue o dedo ou o mouse sobre uma marca do gráfico. Só a dica é
+ * redesenhada ao mover (antes o painel inteiro era, a cada movimento).
+ */
 export function useDica() {
-  const [dica, setDica] = useState<{
-    x: number;
-    y: number;
-    texto: ReactNode;
-  } | null>(null);
+  const mostrar = useRef<(d: EstadoDica) => void>(() => {});
   const props = (texto: ReactNode) => ({
     onPointerMove: (e: React.PointerEvent) =>
-      setDica({ x: e.clientX, y: e.clientY, texto }),
-    onPointerLeave: () => setDica(null),
+      mostrar.current({ x: e.clientX, y: e.clientY, texto }),
+    onPointerLeave: () => mostrar.current(null),
     onFocus: (e: React.FocusEvent<HTMLElement | SVGElement>) => {
       const r = e.currentTarget.getBoundingClientRect();
-      setDica({ x: r.left + r.width / 2, y: r.top, texto });
+      mostrar.current({ x: r.left + r.width / 2, y: r.top, texto });
     },
-    onBlur: () => setDica(null),
+    onBlur: () => mostrar.current(null),
   });
-  const el = dica && (
+  return [props, <Dica key="dica" ligar={mostrar} />] as const;
+}
+
+function Dica({ ligar }: { ligar: React.RefObject<(d: EstadoDica) => void> }) {
+  const [dica, setDica] = useState<EstadoDica>(null);
+  useEffect(() => {
+    // um desenho por quadro, mesmo com muitos eventos de movimento
+    let quadro = 0,
+      proxima: EstadoDica = null;
+    ligar.current = (d) => {
+      proxima = d;
+      if (!quadro)
+        quadro = requestAnimationFrame(() => {
+          quadro = 0;
+          setDica(proxima);
+        });
+    };
+    return () => {
+      cancelAnimationFrame(quadro);
+      ligar.current = () => {};
+    };
+  }, [ligar]);
+  if (!dica) return null;
+  return (
     <div
       className="dica"
       role="tooltip"
@@ -335,5 +359,4 @@ export function useDica() {
       {dica.texto}
     </div>
   );
-  return [props, el] as const;
 }

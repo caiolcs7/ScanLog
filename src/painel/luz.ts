@@ -6,6 +6,8 @@
  * acendem em seguida e a luz cai sobre as estantes. Toca uma vez (~6 s) e
  * para no último quadro: sem laço contínuo, poupa bateria. Cada quadro é
  * função só do tempo (`quadro(t)`), então dá para pular para qualquer instante.
+ * Roda num worker (OffscreenCanvas) quando o navegador deixa: a página não
+ * trava enquanto o 3D monta e desenha. Sem worker, roda na própria página.
  */
 import * as T from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -33,6 +35,16 @@ const meio = (k: number) => {
   return k < 0.5 ? 8 * k ** 4 : 1 - Math.pow(-2 * k + 2, 4) / 2;
 };
 const faixa = (t: number, a: number, b: number) => clamp((t - a) / (b - a));
+// requestAnimationFrame existe na página e no worker (onde algum navegador
+// antigo pode não ter: então ~60 quadros por segundo com relógio)
+const proximo = (f: (agora: number) => void): number =>
+  typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame(f)
+    : (setTimeout(() => f(performance.now()), 16) as unknown as number);
+const cancelar = (id: number) =>
+  typeof cancelAnimationFrame === 'function'
+    ? cancelAnimationFrame(id)
+    : clearTimeout(id);
 
 function rnd(seed: number) {
   let x = seed >>> 0 || 1;
@@ -43,13 +55,19 @@ function rnd(seed: number) {
     return (x >>> 0) / 4294967296;
   };
 }
+type Tela = HTMLCanvasElement | OffscreenCanvas;
+/** Canvas 2D para as texturas (no worker não há `document`). */
 function tela(w: number, h: number) {
+  if (typeof document === 'undefined') {
+    const c = new OffscreenCanvas(w, h);
+    return [c, c.getContext('2d')!] as const;
+  }
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   return [c, c.getContext('2d')!] as const;
 }
-function textura(c: HTMLCanvasElement, srgb = true) {
+function textura(c: Tela, srgb = true) {
   const t = new T.CanvasTexture(c);
   if (srgb) t.colorSpace = T.SRGBColorSpace;
   t.anisotropy = 8;
@@ -124,58 +142,6 @@ function rosca(voltas: number) {
     (_x, y) => Math.sin((y / 128) * Math.PI * 2 * voltas),
     1.6,
   );
-}
-/** Placa de inox escovado com a marca gravada. */
-function placa() {
-  const [c, x] = tela(1024, 512),
-    r = rnd(19);
-  x.fillStyle = '#b4b9bd';
-  x.fillRect(0, 0, 1024, 512);
-  for (let i = 0; i < 2600; i++) {
-    const v = 150 + r() * 90;
-    x.fillStyle = `rgba(${v},${v + 3},${v + 6},0.18)`;
-    x.fillRect(0, r() * 512, 1024, 1);
-  }
-  const fonte = '"Barlow Semi Condensed", "Arial Narrow", sans-serif';
-  // gravado: sombra clara embaixo, tinta escura por cima
-  const grava = (
-    txt: string,
-    y: number,
-    px: number,
-    peso: number,
-    esp: number,
-  ) => {
-    x.font = `${peso} ${px}px ${fonte}`;
-    x.letterSpacing = `${esp}px`;
-    x.textAlign = 'center';
-    x.textBaseline = 'middle';
-    x.fillStyle = 'rgba(255,255,255,0.5)';
-    x.fillText(txt, 512, y + 2);
-    x.fillStyle = '#1c2124';
-    x.fillText(txt, 512, y);
-  };
-  grava('MACCOMEVAP', 220, 168, 700, 10);
-  x.fillStyle = '#1c2124';
-  x.fillRect(250, 318, 524, 3);
-  grava('INDÚSTRIA BRASILEIRA', 372, 46, 600, 9);
-  for (const [rx, ry] of [
-    [52, 52],
-    [972, 52],
-    [52, 460],
-    [972, 460],
-  ]) {
-    const g = x.createRadialGradient(rx - 6, ry - 6, 2, rx, ry, 22);
-    g.addColorStop(0, '#f2f4f5');
-    g.addColorStop(1, '#6d7377');
-    x.fillStyle = g;
-    x.beginPath();
-    x.arc(rx, ry, 20, 0, Math.PI * 2);
-    x.fill();
-  }
-  x.strokeStyle = 'rgba(30,34,37,0.6)';
-  x.lineWidth = 6;
-  x.strokeRect(3, 3, 1018, 506);
-  return textura(c);
 }
 function papelao() {
   const [c, x] = tela(256, 256),
@@ -330,6 +296,7 @@ export class Luminaria {
   private bloom: UnrealBloomPass;
   private env: T.Texture;
   private metais: T.MeshStandardMaterial[] = [];
+  private placa: T.Texture;
   private spot: T.SpotLight;
   private varre: T.SpotLight;
   private leds!: T.MeshStandardMaterial;
@@ -340,27 +307,40 @@ export class Luminaria {
   private distantes: Distante[] = [];
   private nevoa: T.FogExp2;
   private chaves: Chave[] = [];
-  private ro: ResizeObserver;
   private raf = 0;
   private inicio = 0;
   private larg = 0;
   private alt = 0;
+  private quadros: number[] = [];
+  private desenhou = false;
+  private prBase: number;
+  /** Chamado uma vez quando o filme chega ao fim. */
+  fim?: () => void;
   t = 0;
 
-  constructor(private host: HTMLElement) {
+  /**
+   * `pr`: pixels por ponto (o celular usa menos). `leve`: sombra menor, para
+   * GPU fraca. `placa`: a placa da marca já desenhada (precisa da fonte, que
+   * só a página tem).
+   */
+  constructor(
+    private cv: Tela,
+    { pr, leve, placa }: { pr: number; leve: boolean; placa: Tela },
+  ) {
+    // sem antialias: a imagem passa pelos efeitos, que já desenham fora da tela
     this.rd = new T.WebGLRenderer({
-      antialias: true,
+      canvas: cv,
+      antialias: false,
       powerPreference: 'high-performance',
     });
     const rd = this.rd;
-    rd.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    rd.setPixelRatio(pr);
+    this.prBase = pr;
     rd.toneMapping = T.ACESFilmicToneMapping;
     rd.toneMappingExposure = 1.0;
     rd.shadowMap.enabled = true;
     rd.shadowMap.type = T.PCFShadowMap;
-    rd.domElement.className = 'luz-cv';
-    rd.domElement.setAttribute('aria-hidden', 'true');
-    host.appendChild(rd.domElement);
+    this.placa = textura(placa);
 
     const sc = this.sc;
     sc.background = new T.Color(0x06080a);
@@ -391,7 +371,7 @@ export class Luminaria {
     this.spot.target.position.set(0, PISO, 0);
     this.spot.map = grade();
     this.spot.castShadow = true;
-    this.spot.shadow.mapSize.set(1024, 1024);
+    this.spot.shadow.mapSize.setScalar(leve ? 512 : 1024);
     this.spot.shadow.bias = -0.0005;
     this.spot.shadow.normalBias = 0.02;
     this.spot.shadow.camera.near = 0.1;
@@ -418,13 +398,14 @@ void main() {
     this.bloom = new UnrealBloomPass(new T.Vector2(256, 256), 0.6, 0.6, 0.9);
     this.comp.addPass(this.bloom);
     this.comp.addPass(new OutputPass());
+  }
 
-    this.ro = new ResizeObserver(() => {
-      this.tamanho();
-      if (!this.raf) this.quadro(this.t);
-    });
-    this.ro.observe(host);
+  /** Novo tamanho do palco (em pontos); redesenha se estiver parado. */
+  redimensionar(w: number, h: number) {
+    this.larg = w;
+    this.alt = h;
     this.tamanho();
+    if (!this.raf && this.desenhou) this.quadro(this.t);
   }
 
   private metal(p: T.MeshStandardMaterialParameters) {
@@ -572,7 +553,7 @@ void main() {
     // placa da marca, no vão, virada para +z
     const placaM = new T.Mesh(
       new T.CylinderGeometry(0.1272, 0.1272, 0.06, 32, 1, true, -0.32, 0.64),
-      this.metal({ map: placa(), metalness: 0.7, roughness: 0.3 }),
+      this.metal({ map: this.placa, metalness: 0.7, roughness: 0.3 }),
     );
     placaM.position.y = 0.17;
     g.add(placaM);
@@ -978,11 +959,9 @@ void main() {
   }
 
   private tamanho() {
-    const w = this.host.clientWidth,
-      h = this.host.clientHeight;
+    const w = this.larg,
+      h = this.alt;
     if (!w || !h) return;
-    this.larg = w;
-    this.alt = h;
     this.rd.setSize(w, h, false);
     this.comp.setSize(w, h);
     this.comp.setPixelRatio(this.rd.getPixelRatio());
@@ -1065,30 +1044,72 @@ void main() {
     this.bloom.strength = mix(0.2, mix(0.32, 0.55, faixa(longe, 0.5, 1.4)), on);
 
     this.comp.render();
+    this.desenhou = true;
+  }
+
+  /** Compila os shaders sem travar a página (antes do primeiro quadro). */
+  async preparar() {
+    await this.rd.compileAsync(this.sc, this.cam).catch(() => {});
   }
 
   /** Toca do começo (ou do t dado) até o fim e para. */
   tocar(de = 0) {
-    cancelAnimationFrame(this.raf);
+    cancelar(this.raf);
     this.inicio = performance.now() - de * 1000;
-    const passo = () => {
+    let antes = 0;
+    const passo = (agora: number) => {
       const t = (performance.now() - this.inicio) / 1000;
       this.quadro(t);
-      this.raf = t < DURACAO ? requestAnimationFrame(passo) : 0;
+      if (antes) this.medir(agora - antes);
+      antes = agora;
+      this.raf = t < DURACAO ? proximo(passo) : 0;
+      if (!this.raf) this.fim?.();
     };
-    this.raf = requestAnimationFrame(passo);
+    this.raf = proximo(passo);
+  }
+
+  /** Aparelho lento (quadros longos): desenha com menos pixels. */
+  private medir(ms: number) {
+    this.quadros.push(ms);
+    if (this.quadros.length < 3) return;
+    const meio = [...this.quadros].sort((a, b) => a - b)[1];
+    this.quadros = [];
+    const pr = this.rd.getPixelRatio();
+    if (meio > 40 && pr > 0.6) {
+      this.rd.setPixelRatio(Math.max(0.6, pr * (meio > 120 ? 0.6 : 0.8)));
+      this.tamanho();
+    }
+  }
+
+  /** O quadro atual como imagem (copiada logo depois de desenhar). */
+  foto(): Promise<Blob> {
+    // o quadro que fica: com a resolução cheia, mesmo se o filme baixou
+    if (this.rd.getPixelRatio() !== this.prBase) {
+      this.rd.setPixelRatio(this.prBase);
+      this.tamanho();
+    }
+    this.quadro(this.t);
+    const cv = this.cv;
+    if (!('toBlob' in cv))
+      return cv.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+    return new Promise((ok, falha) =>
+      cv.toBlob(
+        (b) => (b ? ok(b) : falha(new Error('sem imagem'))),
+        'image/jpeg',
+        0.92,
+      ),
+    );
   }
 
   /** Para onde está; `tocar(this.t)` continua dali. */
   pausar() {
-    cancelAnimationFrame(this.raf);
+    cancelar(this.raf);
     this.raf = 0;
   }
 
   destruir() {
-    cancelAnimationFrame(this.raf);
+    cancelar(this.raf);
     this.raf = 0;
-    this.ro.disconnect();
     this.comp.dispose();
     this.sc.traverse((o) => {
       if (
@@ -1110,7 +1131,7 @@ void main() {
     this.spot.shadow.map?.dispose();
     this.env.dispose();
     this.rd.dispose();
-    this.rd.domElement.remove();
+    this.rd.forceContextLoss();
   }
 }
 

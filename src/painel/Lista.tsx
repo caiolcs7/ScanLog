@@ -1,4 +1,11 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ArrowLeft,
   ChevronRight,
@@ -64,7 +71,21 @@ const nomeAndar = (a: string) => NOME_ANDAR[a] ?? `Andar ${a.slice(1)}`;
 
 type Item = { m: Material; vagas: Vaga[] };
 
-export function Lista({
+/** Descrição já sem acento, para a busca não refazer isso a cada letra. */
+const textos = new WeakMap<Material, string>();
+const textoDe = (m: Material) => {
+  let t = textos.get(m);
+  if (t == null) textos.set(m, (t = semAcento(m.descricao ?? '')));
+  return t;
+};
+
+/**
+ * Linhas desenhadas de cada vez. As seguintes entram sozinhas quando a rolagem
+ * chega perto do fim (sem botão): a lista inteira de uma vez travava o celular.
+ */
+const PASSO = 40;
+
+export const Lista = memo(function Lista({
   ctx,
   filtro,
   setFiltro,
@@ -102,9 +123,7 @@ export function Lista({
     const r: Item[] = [];
     for (const m of dados.materiais) {
       if (
-        (q &&
-          !m.codigo.includes(q) &&
-          !semAcento(m.descricao ?? '').includes(q)) ||
+        (q && !m.codigo.includes(q) && !textoDe(m).includes(q)) ||
         (filtro.situacao && (filtro.situacao === 'com') !== temPreco(m)) ||
         (filtro.tipo && m.tipo !== filtro.tipo) ||
         (filtro.fornecedor &&
@@ -171,6 +190,34 @@ export function Lista({
       itens,
     }));
   }, [lista, rua, filtro.andar, filtro.ordem, andares.length]);
+
+  // Começa com poucas linhas a cada rua, busca ou filtro novo; mudanças ao vivo
+  // não encolhem a lista de quem já rolou.
+  const chave = `${busca}|${JSON.stringify({ ...filtro, busca: '' })}|${todos}`;
+  const [mostrar, setMostrar] = useState({ chave, n: PASSO });
+  const limite = mostrar.chave === chave ? mostrar.n : PASSO;
+  const fim = useRef<HTMLDivElement>(null);
+  const falta = lista.length > limite;
+  useEffect(() => {
+    const el = fim.current;
+    if (!falta || !el) return;
+    const olho = new IntersectionObserver(
+      ([e]) => e.isIntersecting && setMostrar({ chave, n: limite + PASSO }),
+      { rootMargin: '1500px 0px' },
+    );
+    olho.observe(el);
+    return () => olho.disconnect();
+  }, [falta, chave, limite]);
+  const visiveis = useMemo(() => {
+    let resta = limite;
+    return grupos
+      .map((g) => {
+        const itens = g.itens.slice(0, Math.max(0, resta));
+        resta -= itens.length;
+        return { ...g, total: g.itens.length, itens };
+      })
+      .filter((g) => g.itens.length);
+  }, [grupos, limite]);
 
   // Filtros além da rua e do andar (que já aparecem no título).
   const ativos = (
@@ -426,14 +473,14 @@ export function Lista({
           </div>
 
           {lista.length ? (
-            grupos.map((g) => (
+            visiveis.map((g) => (
               <section key={g.titulo || 'todos'} className="grupo">
                 {g.titulo && (
                   <h3 className="grupo-t">
                     {g.titulo}
                     <span>
-                      {inteiro(g.itens.length)}{' '}
-                      {g.itens.length === 1 ? 'material' : 'materiais'}
+                      {inteiro(g.total)}{' '}
+                      {g.total === 1 ? 'material' : 'materiais'}
                     </span>
                   </h3>
                 )}
@@ -443,7 +490,9 @@ export function Lista({
                       key={it.m.codigo}
                       m={it.m}
                       vagas={rua ? it.vagas : null}
-                      ctx={ctx}
+                      cambio={ctx.cambio}
+                      porId={ctx.porId}
+                      abrir={ctx.abrir}
                     />
                   ))}
                 </ul>
@@ -459,12 +508,13 @@ export function Lista({
               </p>
             </div>
           )}
+          {falta && <div ref={fim} className="mats-fim" aria-hidden />}
         </>
       )}
       {novo && <NovoCodigo ctx={ctx} fechar={() => setNovo(false)} />}
     </div>
   );
-}
+});
 
 /** Primeira tela: uma placa por rua, como as pintadas no piso. */
 function EscolherRua({
@@ -527,95 +577,109 @@ function EscolherRua({
   );
 }
 
-function Linha({
-  m,
-  vagas,
-  ctx,
-}: {
+type PropsLinha = {
   m: Material;
   /** Na rua: as posições do material nela, a primeira em destaque. */
   vagas: Vaga[] | null;
-  ctx: Contexto;
-}) {
-  const r = emReais(m, ctx.cambio),
-    o = oferta(m),
-    nomes = ofertas(m)
-      .map((x) =>
-        x.fornecedor_id != null ? ctx.porId.get(x.fornecedor_id)?.nome : null,
-      )
-      .filter((x): x is string => !!x);
-  const v = vagas?.[0];
-  // Ao lado do código, o endereço completo; na rua, só os desta rua.
-  const ends = vagas
-    ? enderecos(vagas.map((x) => x.local))
-    : enderecos(m.locais);
-  // "também em": outros galões da rua (os endereços completos já aparecem).
-  const outras =
-    vagas
-      ?.slice(1)
-      .filter((x) => !completo(x.local))
-      .map((x) =>
-        x.andar === v?.andar ? x.rotulo : `${x.andar} ${x.rotulo}`,
-      ) ?? [];
-  return (
-    <li>
-      <button
-        className={`mat ${vagas ? 'na-rua' : ''}`}
-        onClick={() => ctx.abrir(m.codigo)}
-      >
-        {vagas && (
-          <span
-            className={`vaga mono ${v && v.rotulo.length > 4 ? 'longa' : ''}`}
-            aria-label={v ? `Posição ${v.rotulo}` : undefined}
-          >
-            {v ? v.rotulo : '—'}
+  cambio: Contexto['cambio'];
+  porId: Contexto['porId'];
+  abrir: Contexto['abrir'];
+};
+// Só redesenha a linha cujo material (ou posição) mudou.
+const mesmasVagas = (a: Vaga[] | null, b: Vaga[] | null) =>
+  a === b ||
+  (!!a &&
+    !!b &&
+    a.length === b.length &&
+    a.every((v, i) => v.local === b[i].local));
+const Linha = memo(
+  function Linha({ m, vagas, cambio, porId, abrir }: PropsLinha) {
+    const r = emReais(m, cambio),
+      o = oferta(m),
+      nomes = ofertas(m)
+        .map((x) =>
+          x.fornecedor_id != null ? porId.get(x.fornecedor_id)?.nome : null,
+        )
+        .filter((x): x is string => !!x);
+    const v = vagas?.[0];
+    // Ao lado do código, o endereço completo; na rua, só os desta rua.
+    const ends = vagas
+      ? enderecos(vagas.map((x) => x.local))
+      : enderecos(m.locais);
+    // "também em": outros galões da rua (os endereços completos já aparecem).
+    const outras =
+      vagas
+        ?.slice(1)
+        .filter((x) => !completo(x.local))
+        .map((x) =>
+          x.andar === v?.andar ? x.rotulo : `${x.andar} ${x.rotulo}`,
+        ) ?? [];
+    return (
+      <li>
+        <button
+          className={`mat ${vagas ? 'na-rua' : ''}`}
+          onClick={() => abrir(m.codigo)}
+        >
+          {vagas && (
+            <span
+              className={`vaga mono ${v && v.rotulo.length > 4 ? 'longa' : ''}`}
+              aria-label={v ? `Posição ${v.rotulo}` : undefined}
+            >
+              {v ? v.rotulo : '—'}
+            </span>
+          )}
+          <span className="mat-a">
+            <span className="mat-cod">
+              <span className="mat-c mono">{m.codigo}</span>
+              {ends.slice(0, 2).map((l) => (
+                <span key={l} className="mat-e mono" title={local(l)}>
+                  {l}
+                </span>
+              ))}
+              {ends.length > 2 && (
+                <span className="mat-e mais">+{ends.length - 2}</span>
+              )}
+            </span>
+            <span className="mat-d">{m.descricao ?? 'Sem descrição'}</span>
+            <span className="mat-l">
+              {m.tipo && <span className="tag">{m.tipo}</span>}
+              {outras.length > 0 && (
+                <span className="tag tag-l">
+                  também em{' '}
+                  <span className="mono">
+                    {outras.slice(0, 4).join(', ')}
+                    {outras.length > 4 && ` +${outras.length - 4}`}
+                  </span>
+                </span>
+              )}
+            </span>
           </span>
-        )}
-        <span className="mat-a">
-          <span className="mat-cod">
-            <span className="mat-c mono">{m.codigo}</span>
-            {ends.slice(0, 2).map((l) => (
-              <span key={l} className="mat-e mono" title={local(l)}>
-                {l}
+          <span className="mat-b">
+            {o ? (
+              <>
+                <b className="mat-p mono">{dinheiro(o.preco!, o.moeda!)}</b>
+                {o.moeda !== 'BRL' && r != null && Number.isFinite(r) && (
+                  <span className="mat-r mono">≈ {reais(r)}</span>
+                )}
+              </>
+            ) : (
+              <span className="pill pill-sem">Sem preço</span>
+            )}
+            {nomes.map((n) => (
+              <span key={n} className="mat-f">
+                {n}
               </span>
             ))}
-            {ends.length > 2 && (
-              <span className="mat-e mais">+{ends.length - 2}</span>
-            )}
           </span>
-          <span className="mat-d">{m.descricao ?? 'Sem descrição'}</span>
-          <span className="mat-l">
-            {m.tipo && <span className="tag">{m.tipo}</span>}
-            {outras.length > 0 && (
-              <span className="tag tag-l">
-                também em{' '}
-                <span className="mono">
-                  {outras.slice(0, 4).join(', ')}
-                  {outras.length > 4 && ` +${outras.length - 4}`}
-                </span>
-              </span>
-            )}
-          </span>
-        </span>
-        <span className="mat-b">
-          {o ? (
-            <>
-              <b className="mat-p mono">{dinheiro(o.preco!, o.moeda!)}</b>
-              {o.moeda !== 'BRL' && r != null && Number.isFinite(r) && (
-                <span className="mat-r mono">≈ {reais(r)}</span>
-              )}
-            </>
-          ) : (
-            <span className="pill pill-sem">Sem preço</span>
-          )}
-          {nomes.map((n) => (
-            <span key={n} className="mat-f">
-              {n}
-            </span>
-          ))}
-        </span>
-        <ChevronRight className="mat-ir" aria-hidden />
-      </button>
-    </li>
-  );
-}
+          <ChevronRight className="mat-ir" aria-hidden />
+        </button>
+      </li>
+    );
+  },
+  (a, b) =>
+    a.m === b.m &&
+    a.cambio === b.cambio &&
+    a.porId === b.porId &&
+    a.abrir === b.abrir &&
+    mesmasVagas(a.vagas, b.vagas),
+);
