@@ -285,6 +285,7 @@ svg {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: cover;
   opacity: 0;
   transition: opacity 0.5s ease;
 }
@@ -1017,9 +1018,8 @@ button.hm-c:hover {
   z-index: 4;
   margin: 0 -16px;
   padding: 10px 16px;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  -webkit-backdrop-filter: saturate(1.5) blur(12px);
-  backdrop-filter: saturate(1.5) blur(12px);
+  /* fundo sólido: desfoque sobre a lista rolando custa caro no celular */
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
   scroll-margin-top: 0;
 }
@@ -1389,10 +1389,13 @@ button.hm-c:hover {
 .mats li + li {
   border-top: 1px solid var(--line);
 }
-/* Rua inteira de uma vez: o navegador só desenha as linhas que aparecem. */
+/* O navegador só desenha as linhas que aparecem. */
 .mats > li {
   content-visibility: auto;
   contain-intrinsic-size: auto 92px;
+}
+.mats-fim {
+  height: 1px;
 }
 .mat {
   display: flex;

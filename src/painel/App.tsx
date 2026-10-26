@@ -65,7 +65,10 @@ export function App() {
   );
   const recarregar = useCallback(() => {
     setFalha(null);
-    carregar().then(setDados, (e: Error) => setFalha(e.message));
+    carregar().then(
+      (d) => setDados((antes) => manter(antes, d)),
+      (e: Error) => setFalha(e.message),
+    );
   }, []);
   useEffect(recarregar, [recarregar]);
 
@@ -120,7 +123,10 @@ export function App() {
     const ver = () => {
       if (document.hidden) saiu = Date.now();
       else if (saiu && Date.now() - saiu > 60000)
-        carregar().then(setDados, () => {});
+        carregar().then(
+          (d) => setDados((antes) => manter(antes, d)),
+          () => {},
+        );
     };
     document.addEventListener('visibilitychange', ver);
     return () => document.removeEventListener('visibilitychange', ver);
@@ -174,26 +180,55 @@ export function App() {
       .map(([rua, v]) => ({ rua, ...v }));
   }, [dados?.materiais]);
 
-  const ctx: Contexto | null = dados && {
-    dados,
-    sessao,
-    porId,
-    cambio: cot,
-    escrever,
-    avisar,
-    abrir: setAberto,
-    aplicar,
-    aplicarFornecedor,
-    pedirLogin,
-  };
+  // O mesmo objeto enquanto nada muda: abrir a ficha ou um aviso não
+  // redesenha as listas (com milhares de linhas, isso travava o celular).
+  const ctx = useMemo<Contexto | null>(
+    () =>
+      dados && {
+        dados,
+        sessao,
+        porId,
+        cambio: cot,
+        escrever,
+        avisar,
+        abrir: setAberto,
+        aplicar,
+        aplicarFornecedor,
+        pedirLogin,
+      },
+    [
+      dados,
+      sessao,
+      porId,
+      cot,
+      escrever,
+      avisar,
+      aplicar,
+      aplicarFornecedor,
+      pedirLogin,
+    ],
+  );
 
-  const irPara = (a: Aba, f?: Partial<Filtro>) => {
+  const irPara = useCallback((a: Aba, f?: Partial<Filtro>) => {
     if (f) setFiltro({ ...filtroVazio, ...f });
     setAba(a);
     topo.current
       ?.querySelector('.tabs')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  }, []);
+  const desfazerMudanca = useCallback(
+    (id: number) =>
+      escrever((s) => desfazer(s, id)).then(
+        (m) => {
+          if (m) {
+            aplicar(m);
+            avisar('Mudança desfeita.', 'ok');
+          }
+        },
+        (e: Error) => avisar(e.message, 'erro'),
+      ),
+    [escrever, aplicar, avisar],
+  );
 
   const total = dados?.materiais.length ?? 0,
     comPreco = dados?.materiais.filter(temPreco).length ?? 0;
@@ -271,17 +306,7 @@ export function App() {
           ctx={ctx}
           ruas={ruas}
           irPara={irPara}
-          desfazer={(id) =>
-            escrever((s) => desfazer(s, id)).then(
-              (m) => {
-                if (m) {
-                  aplicar(m);
-                  avisar('Mudança desfeita.', 'ok');
-                }
-              },
-              (e: Error) => avisar(e.message, 'erro'),
-            )
-          }
+          desfazer={desfazerMudanca}
           recarregar={recarregar}
         />
       )}
@@ -313,6 +338,33 @@ export function App() {
       {aviso && <Toast aviso={aviso} sumir={() => setAviso(null)} />}
     </div>
   );
+}
+
+/**
+ * Ao reler tudo do servidor, guarda os materiais que não mudaram como estavam:
+ * só as linhas que mudaram são redesenhadas.
+ */
+function manter(antes: Dados | null, novo: Dados): Dados {
+  if (!antes) return novo;
+  const velhos = new Map(antes.materiais.map((m) => [m.codigo, m]));
+  let igual = antes.materiais.length === novo.materiais.length;
+  const materiais = novo.materiais.map((m, i) => {
+    const v = velhos.get(m.codigo);
+    if (v && JSON.stringify(v) === JSON.stringify(m)) {
+      if (antes.materiais[i] !== v) igual = false;
+      return v;
+    }
+    igual = false;
+    return m;
+  });
+  const mesmo = <T,>(a: T, b: T) =>
+    JSON.stringify(a) === JSON.stringify(b) ? a : b;
+  return {
+    materiais: igual ? antes.materiais : materiais,
+    fornecedores: mesmo(antes.fornecedores, novo.fornecedores),
+    cotacoes: mesmo(antes.cotacoes, novo.cotacoes),
+    mudancas: mesmo(antes.mudancas, novo.mudancas),
+  };
 }
 
 function Esqueleto() {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { LoaderCircle, Pencil, Plus } from 'lucide-react';
 import { salvarFornecedor, type Fornecedor, type Origem } from './api';
 import type { Contexto } from './App';
@@ -6,7 +6,7 @@ import type { Filtro } from './Lista';
 import { inteiro, ofertas, semAcento } from './format';
 import { Confirmar, Janela, Seg } from './ui';
 
-export function Fornecedores({
+export const Fornecedores = memo(function Fornecedores({
   ctx,
   irPara,
 }: {
@@ -97,7 +97,7 @@ export function Fornecedores({
       )}
     </div>
   );
-}
+});
 
 /** Cadastro ou correção de fornecedor: nome e nacional/internacional. */
 export function FornecedorForm({

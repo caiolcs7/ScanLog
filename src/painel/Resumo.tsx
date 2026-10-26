@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { DownloadCloud, LoaderCircle, RotateCcw } from 'lucide-react';
 import { importarRuas, type Mudanca, type Moeda } from './api';
 import type { Contexto } from './App';
@@ -30,7 +30,13 @@ type Props = {
   recarregar: () => void;
 };
 
-export function Resumo({ ctx, ruas, irPara, desfazer, recarregar }: Props) {
+export const Resumo = memo(function Resumo({
+  ctx,
+  ruas,
+  irPara,
+  desfazer,
+  recarregar,
+}: Props) {
   const { dados, cambio, porId, sessao } = ctx,
     ms = dados.materiais;
   const [dica, dicaEl] = useDica();
@@ -326,7 +332,7 @@ export function Resumo({ ctx, ruas, irPara, desfazer, recarregar }: Props) {
       {dicaEl}
     </div>
   );
-}
+});
 
 const NOME_TIPO = {
   MP: 'Matéria-prima',
