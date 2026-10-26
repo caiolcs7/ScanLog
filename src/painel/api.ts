@@ -120,10 +120,43 @@ async function tudo<T>(tabela: string, ordem: string) {
   }
 }
 
-export async function carregar(): Promise<Dados> {
+type ItemRua = {
+  codigo: string;
+  descricao: string | null;
+  tipo: Tipo | null;
+  peso_g: number | null;
+  locais: string[];
+  fornecedor?: string;
+  fornecedor2?: string;
+};
+// ruas.json vem junto com o site: cada publicação nova já mostra as
+// localizações certas a todos, sem esperar ninguém sincronizar o banco.
+let ruasJson: Promise<Map<string, ItemRua>> | null = null;
+const ruas = () =>
+  (ruasJson ??= import('./ruas.json').then(
+    (m) => new Map((m.default as ItemRua[]).map((i) => [i.codigo, i])),
+  ));
+let ruasProntas: Map<string, ItemRua> | null = null;
+
+/** Mesma regra do painel_importar: localização das ruas, o resto do banco. */
+export function comRuas(m: Material): Material {
+  const i = ruasProntas?.get(m.codigo);
+  if (!i) return m;
+  return {
+    ...m,
+    locais: i.locais,
+    descricao: m.descricao ?? i.descricao,
+    tipo: m.tipo ?? i.tipo,
+    peso_g: m.peso_g ?? i.peso_g,
+  };
+}
+const iguais = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((x, k) => x === b[k]);
+
+export async function carregar(): Promise<Dados & { desatualizado: boolean }> {
   const db = await supabase();
   const desde = new Date(Date.now() - 95 * 864e5).toISOString().slice(0, 10);
-  const [materiais, fornecedores, cotacoes, mudancas] = await Promise.all([
+  const [doBanco, fornecedores, cotacoes, mudancas, itens] = await Promise.all([
     tudo<Material>('painel_materiais', 'codigo'),
     tudo<Fornecedor>('painel_fornecedores', 'nome'),
     db
@@ -136,10 +169,51 @@ export async function carregar(): Promise<Dados> {
       .select('*')
       .order('em', { ascending: false })
       .limit(30),
+    ruas(),
   ]);
   if (cotacoes.error) throw erro(cotacoes.error);
   if (mudancas.error) throw erro(mudancas.error);
+  ruasProntas = itens;
+  const no = new Set(doBanco.map((m) => m.codigo)),
+    nome = new Map(
+      fornecedores.map((f) => [f.nome.trim().toLowerCase(), f.id]),
+    ),
+    idDe = (n?: string) =>
+      n ? (nome.get(n.trim().toLowerCase()) ?? null) : null;
+  let desatualizado = false;
+  const materiais = doBanco.map((m) => {
+    const c = comRuas(m);
+    if (c !== m && !iguais(c.locais, m.locais)) desatualizado = true;
+    return c;
+  });
+  // Código novo das ruas que o banco ainda não tem: aparece já, sem preço.
+  for (const i of itens.values())
+    if (!no.has(i.codigo)) {
+      desatualizado = true;
+      const f1 = idDe(i.fornecedor);
+      materiais.push({
+        codigo: i.codigo,
+        descricao: i.descricao,
+        tipo: i.tipo,
+        peso_g: i.peso_g,
+        locais: i.locais,
+        fornecedor_id: f1,
+        preco: null,
+        moeda: null,
+        fornecedor2_id: f1 == null ? null : idDe(i.fornecedor2),
+        preco2: null,
+        moeda2: null,
+        quantidade: null,
+        origem: 'ruas',
+        criado_em: '',
+        criado_por: '',
+        atualizado_em: null,
+        atualizado_por: null,
+      });
+    }
+  materiais.sort((a, b) => (a.codigo < b.codigo ? -1 : 1));
   return {
+    desatualizado,
     materiais,
     fornecedores,
     cotacoes: cotacoes.data as Cotacao[],
@@ -218,7 +292,7 @@ export const salvarFornecedor = (
   });
 /** Traz os códigos das ruas (sem mexer em preço, moeda e quantidade). */
 export async function importarRuas(s: Sessao) {
-  const itens = (await import('./ruas.json')).default;
+  const itens = [...(await ruas()).values()];
   return rpc<number>('painel_importar', { p_token: s.token, p_itens: itens });
 }
 
@@ -233,7 +307,10 @@ export async function aoVivo(aviso: {
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'painel_materiais' },
-      (p) => p.new && 'codigo' in p.new && aviso.material(p.new as Material),
+      (p) =>
+        p.new &&
+        'codigo' in p.new &&
+        aviso.material(comRuas(p.new as Material)),
     )
     .on(
       'postgres_changes',

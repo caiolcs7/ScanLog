@@ -2,8 +2,9 @@ import { readFileSync } from 'node:fs';
 import { test, expect, type Page, type Route } from '@playwright/test';
 
 /**
- * Painel de Materiais com o Supabase simulado: a página abre sem login, carrega
- * os códigos das ruas e só edita depois da senha, sempre com confirmação.
+ * Painel de Materiais com o Supabase simulado: a página abre sem login já com
+ * as ruas do site, leva as ruas ao banco sozinha quando alguém entra com a
+ * senha e só edita depois da senha, sempre com confirmação.
  */
 const base = 'http://127.0.0.1:4173/teste-subpasta/';
 const HOST = 'https://pygedyytlcplfweibenv.supabase.co';
@@ -64,13 +65,17 @@ class PainelMock {
       if (a.p_token !== 'token-teste')
         return json({ code: '28000', message: 'Sessão expirada.' }, 401);
       if (nome === 'painel_importar') {
-        for (const i of a.p_itens)
-          this.materiais.push({
-            ...i,
-            origem: 'ruas',
-            criado_em: agora,
-            criado_por: 'Caio',
-          });
+        for (const i of a.p_itens) {
+          const m = this.materiais.find((x) => x.codigo === i.codigo);
+          if (m) m.locais = i.locais;
+          else
+            this.materiais.push({
+              ...i,
+              origem: 'ruas',
+              criado_em: agora,
+              criado_por: 'Caio',
+            });
+        }
         return json(a.p_itens.length);
       }
       if (nome === 'painel_salvar') {
@@ -128,27 +133,45 @@ class PainelMock {
   }
 }
 
-test('painel: carrega as ruas, pede senha, salva com confirmação e desfaz', async ({
+test('painel: ruas sem botão, pede senha, salva com confirmação e desfaz', async ({
   page,
 }) => {
   const nuvem = new PainelMock();
+  // banco com localização velha: o site mostra a das ruas mesmo assim
+  nuvem.materiais.push({
+    codigo: 'ITRKCHFE002',
+    descricao: null,
+    locais: ['R13A1G02'],
+    quantidade: 3,
+    origem: 'ruas',
+    criado_em: '2026-10-23T00:00:00Z',
+    criado_por: 'Caio',
+  });
   await nuvem.install(page);
   await page.goto(`${base}painel/`);
-  await expect(page.getByText('Ainda não há códigos no painel')).toBeVisible();
+  await page.getByRole('tab', { name: 'Materiais' }).click();
+  await page.getByPlaceholder('Buscar código ou descrição').fill('ITRKCHFE002');
+  await page.locator('.mat').first().click();
+  const velha = page.getByRole('dialog', { name: 'Material ITRKCHFE002' });
+  await expect(velha.getByText('R13A1G200').first()).toBeVisible();
+  await expect(velha.getByText('R13A1G02', { exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(
+    page.getByRole('button', { name: /Atualizar localizações/ }),
+  ).toHaveCount(0);
+  expect(nuvem.materiais).toHaveLength(1);
+  await page.getByRole('tab', { name: 'Painel' }).click();
 
-  await page
-    .getByRole('button', { name: 'Carregar os códigos das ruas' })
-    .click();
+  await page.getByRole('button', { name: 'Entrar para editar' }).click();
   await page.getByLabel('Seu nome').fill('Ana');
   await page.getByLabel('Senha').fill('9999');
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByText('Senha incorreta.')).toBeVisible();
   await page.getByLabel('Senha').fill('senha-teste');
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-  await expect(
-    page.getByText(`${TOTAL.toLocaleString('pt-BR')} códigos carregados.`),
-  ).toBeVisible();
-  expect(nuvem.materiais).toHaveLength(TOTAL);
+  await expect.poll(() => nuvem.materiais.length).toBe(TOTAL);
+  expect(nuvem.materiais[0]).toMatchObject({ quantidade: 3 });
+  expect(nuvem.materiais[0].locais).toContain('R13A1G200');
   await expect(
     page.getByRole('button', { name: 'Editando como Ana' }),
   ).toBeVisible();

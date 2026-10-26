@@ -3,6 +3,7 @@ import { BarChart3, Boxes, Factory, LogIn, LogOut } from 'lucide-react';
 import {
   aoVivo,
   carregar,
+  importarRuas,
   desfazer,
   esquecerSessao,
   lerSessao,
@@ -63,14 +64,31 @@ export function App() {
       setAviso({ texto, tom, acao, id: Date.now() }),
     [],
   );
+  // Quem tem a senha leva as ruas novas para o banco sozinho, sem botão.
+  const sessaoAtual = useRef(sessao);
+  sessaoAtual.current = sessao;
+  const sincronizado = useRef(false);
   const recarregar = useCallback(() => {
     setFalha(null);
     carregar().then(
-      (d) => setDados((antes) => manter(antes, d)),
+      (d) => {
+        setDados((antes) => manter(antes, d));
+        const s = sessaoAtual.current;
+        if (d.desatualizado && s && !sincronizado.current) {
+          sincronizado.current = true;
+          importarRuas(s).catch(() => (sincronizado.current = false));
+        }
+      },
       (e: Error) => setFalha(e.message),
     );
   }, []);
   useEffect(recarregar, [recarregar]);
+  // Entrou com a senha agora: confere se as ruas do banco estão em dia.
+  const tinhaSessao = useRef(!!sessao);
+  useEffect(() => {
+    if (sessao && !tinhaSessao.current) recarregar();
+    tinhaSessao.current = !!sessao;
+  }, [sessao, recarregar]);
 
   // Mudanças de outras pessoas chegam ao vivo; o histórico é relido em seguida.
   const historico = useRef(0);
@@ -307,7 +325,6 @@ export function App() {
           ruas={ruas}
           irPara={irPara}
           desfazer={desfazerMudanca}
-          recarregar={recarregar}
         />
       )}
       {ctx && aba === 'materiais' && (

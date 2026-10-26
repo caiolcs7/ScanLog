@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
-import { DownloadCloud, LoaderCircle, RotateCcw } from 'lucide-react';
-import { importarRuas, type Mudanca, type Moeda } from './api';
+import { RotateCcw } from 'lucide-react';
+import type { Mudanca, Moeda } from './api';
 import type { Contexto } from './App';
 import type { Filtro } from './Lista';
 import {
@@ -20,14 +20,13 @@ import {
   type RuaResumo,
 } from './format';
 import { diferencas } from './mudanca';
-import { Confirmar, useDica } from './ui';
+import { useDica } from './ui';
 
 type Props = {
   ctx: Contexto;
   ruas: RuaResumo[];
   irPara: (a: 'materiais' | 'fornecedores', f?: Partial<Filtro>) => void;
   desfazer: (id: number) => void;
-  recarregar: () => void;
 };
 
 export const Resumo = memo(function Resumo({
@@ -35,9 +34,8 @@ export const Resumo = memo(function Resumo({
   ruas,
   irPara,
   desfazer,
-  recarregar,
 }: Props) {
-  const { dados, cambio, porId, sessao } = ctx,
+  const { dados, cambio, porId } = ctx,
     ms = dados.materiais;
   const [dica, dicaEl] = useDica();
   const n = useMemo(() => {
@@ -99,7 +97,6 @@ export const Resumo = memo(function Resumo({
     };
   }, [ms, cambio, porId]);
 
-  if (!ms.length) return <Vazio ctx={ctx} recarregar={recarregar} />;
   const total = ms.length,
     nac = dados.fornecedores.filter((f) => f.origem === 'nacional').length;
 
@@ -328,7 +325,6 @@ export const Resumo = memo(function Resumo({
         </section>
       </div>
 
-      {sessao && <Sincronizar ctx={ctx} recarregar={recarregar} />}
       {dicaEl}
     </div>
   );
@@ -616,97 +612,5 @@ function Mudancas({
         );
       })}
     </ul>
-  );
-}
-
-function Vazio({ ctx, recarregar }: { ctx: Contexto; recarregar: () => void }) {
-  const [ocupado, setOcupado] = useState(false);
-  return (
-    <div className="panel vazio">
-      <p className="h2">Ainda não há códigos no painel</p>
-      <p className="msg">
-        Os códigos das ruas entram com um toque, com descrição, peso,
-        localização e fornecedores. Preço e moeda ficam para vocês preencherem.
-      </p>
-      <button
-        className="btn"
-        disabled={ocupado}
-        onClick={async () => {
-          setOcupado(true);
-          try {
-            const n = await ctx.escrever(importarRuas);
-            if (n != null) {
-              ctx.avisar(`${inteiro(n)} códigos carregados.`, 'ok');
-              recarregar();
-            }
-          } catch (e) {
-            ctx.avisar((e as Error).message, 'erro');
-          }
-          setOcupado(false);
-        }}
-      >
-        {ocupado ? (
-          <LoaderCircle className="gira" aria-hidden />
-        ) : (
-          <DownloadCloud aria-hidden />
-        )}
-        Carregar os códigos das ruas
-      </button>
-    </div>
-  );
-}
-
-function Sincronizar({
-  ctx,
-  recarregar,
-}: {
-  ctx: Contexto;
-  recarregar: () => void;
-}) {
-  const [perguntar, setPerguntar] = useState(false);
-  const [ocupado, setOcupado] = useState(false);
-  return (
-    <p className="sinc">
-      <button className="btn-link" onClick={() => setPerguntar(true)}>
-        Atualizar localizações das ruas
-      </button>
-      {perguntar && (
-        <Confirmar
-          titulo="Atualizar localizações?"
-          linhas={[
-            { campo: 'Localizações', de: 'atuais', para: 'ruas do Relatório' },
-            {
-              campo: 'Fornecedores',
-              de: 'atuais',
-              para: 'só de quem nunca foi editado',
-            },
-            {
-              campo: 'Preço, moeda e quantidade',
-              de: 'atuais',
-              para: 'não mudam',
-            },
-          ]}
-          ocupado={ocupado}
-          cancelar={() => setPerguntar(false)}
-          confirmar={async () => {
-            setOcupado(true);
-            try {
-              const n = await ctx.escrever(importarRuas);
-              if (n != null) {
-                ctx.avisar(
-                  `Localizações de ${inteiro(n)} códigos atualizadas.`,
-                  'ok',
-                );
-                recarregar();
-              }
-            } catch (e) {
-              ctx.avisar((e as Error).message, 'erro');
-            }
-            setOcupado(false);
-            setPerguntar(false);
-          }}
-        />
-      )}
-    </p>
   );
 }
