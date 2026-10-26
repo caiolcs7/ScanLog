@@ -198,6 +198,10 @@ for (const l of dados) {
           .filter((t) => /^R\d{2}A\d[A-Z0-9]+$/.test(t)),
       ),
     ];
+  // só existem os andares 1 e 2 (a planilha de 26/10 trouxe um "Andar 7" digitado errado)
+  for (const e of ends.filter((e) => !/^R\d{2}A[12]/.test(e)))
+    console.error('andar fora de A1/A2, ignorado:', codigo, e);
+  ends = ends.filter((e) => /^R\d{2}A[12]/.test(e));
   const tipo = ['MP', 'PI', 'PA'].includes(l[C.tipo]) ? l[C.tipo] : null;
   const item = antigo
     ? { ...antigo, locais: [...antigo.locais] }
