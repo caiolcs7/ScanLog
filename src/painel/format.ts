@@ -150,6 +150,29 @@ export function ofertas(
     });
   return r;
 }
+/**
+ * Moeda que o fornecedor da oferta usa: a do preço; sem preço, a que veio da
+ * planilha do sistema; sem isso, fornecedor nacional é Real. null = a definir.
+ */
+export function moedaUsada(
+  o: Oferta,
+  m: Pick<Material, 'moedas'>,
+  porId: Map<number, Fornecedor>,
+): Moeda | null {
+  if (o.moeda) return o.moeda;
+  const planilha = m.moedas?.[o.n - 1];
+  if (planilha) return planilha;
+  const f = o.fornecedor_id != null ? porId.get(o.fornecedor_id) : undefined;
+  return f?.origem === 'nacional' ? 'BRL' : null;
+}
+/** Moeda do material: a do preço; sem preço, a do fornecedor 1. undefined = sem fornecedor. */
+export function moedaDoMaterial(
+  m: Parameters<typeof ofertas>[0] & Pick<Material, 'moedas'>,
+  porId: Map<number, Fornecedor>,
+): Moeda | null | undefined {
+  const o = oferta(m) ?? ofertas(m)[0];
+  return o ? moedaUsada(o, m, porId) : undefined;
+}
 /** Preço usado nas contas: o do fornecedor 1; se não tiver, o do 2. */
 export const oferta = (m: Parameters<typeof ofertas>[0]) =>
   ofertas(m).find((o) => o.preco != null && o.moeda) ?? null;

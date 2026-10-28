@@ -820,6 +820,9 @@ button.hm-c:hover {
   min-width: 0;
 }
 .cot-m {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   font-weight: 600;
   color: var(--muted);
@@ -2018,6 +2021,40 @@ button.hm-c:hover {
   }
 }
 
+/* Moedinha 3D (Moeda3D.tsx): sprite de 36 quadros; gira uma volta e para. */
+.m3d {
+  --m3d: 20px;
+  display: inline-block;
+  flex: none;
+  width: var(--m3d);
+  height: var(--m3d);
+  vertical-align: -0.28em;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6c8, #d9a227 55%, #8a5a12);
+}
+.m3d-usd {
+  background: radial-gradient(circle at 35% 30%, #fbfbf8, #b9bec4 55%, #5d646c);
+}
+.m3d-cny {
+  background: radial-gradient(circle at 35% 30%, #ffe2a6, #c9862a 55%, #7a3d10);
+}
+.m3d-xxx {
+  background: radial-gradient(circle at 35% 30%, #f2f4f6, #a3abb4 55%, #4c545d);
+}
+.m3d.m3d-ok {
+  border-radius: 0;
+  background-repeat: no-repeat;
+  background-size: calc(var(--m3d) * 36) var(--m3d);
+  background-position: 0 0;
+}
+.m3d.m3d-vai {
+  animation: m3d-gira 1.1s step-end both;
+}
+.mat-p .m3d,
+.pill .m3d {
+  margin-right: 5px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2026,7 +2063,8 @@ button.hm-c:hover {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .gira {
+  .gira,
+  .m3d.m3d-vai {
     animation: none;
   }
 }
@@ -2039,6 +2077,15 @@ button.hm-c:hover {
 .ficha-p small {
   display: inline;
   margin-left: 6px;
+}
+.ficha-m {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
 }
 .fm-of {
   display: flex;
