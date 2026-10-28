@@ -191,6 +191,7 @@ const VAZIO = new Set([
   '-',
   'N/A',
   'IMPORTADO',
+  'NACIONAL',
   'CODIGO ANTIGO',
   'COD ANTIGO',
   'MOLDE PERDIDO',
@@ -280,6 +281,9 @@ for (const l of dados) {
   for (const e of ends.filter((e) => !/^R\d{2}A[12]/.test(e)))
     console.error('andar fora de A1/A2, ignorado:', codigo, e);
   ends = ends.filter((e) => /^R\d{2}A[12]/.test(e));
+  // R12A1 não tem mais parafuso, porca nem arruela (caio, 28/10).
+  const semR12 = /^(PARAFUSO|PORCA|ARRUELA)\b/i.test(l[C.desc]);
+  if (semR12) ends = ends.filter((e) => !e.startsWith('R12A1'));
   const tipo = ['MP', 'PI', 'PA'].includes(l[C.tipo]) ? l[C.tipo] : null;
   const item = antigo
     ? { ...antigo, locais: [...antigo.locais] }
@@ -308,6 +312,7 @@ for (const l of dados) {
     r.novos++;
     item.locais = ends;
   }
+  if (semR12) item.locais = item.locais.filter((e) => !e.startsWith('R12A1'));
   // "Coluna 0 · Prateleira 00" é posição não informada: some se há outra.
   const real = item.locais.filter((e) => !/C00[DEC]P00$/.test(e));
   if (real.length) item.locais = real;
