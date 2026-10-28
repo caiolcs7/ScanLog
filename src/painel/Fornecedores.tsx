@@ -1,9 +1,15 @@
 import { memo, useMemo, useState } from 'react';
 import { LoaderCircle, Pencil, Plus } from 'lucide-react';
-import { salvarFornecedor, type Fornecedor, type Origem } from './api';
+import {
+  salvarFornecedor,
+  type Fornecedor,
+  type Moeda,
+  type Origem,
+} from './api';
 import type { Contexto } from './App';
 import type { Filtro } from './Lista';
-import { inteiro, ofertas, semAcento } from './format';
+import { inteiro, moedaUsada, ofertas, semAcento } from './format';
+import { Moeda3D } from './Moeda3D';
 import { Confirmar, Janela, Seg } from './ui';
 
 export const Fornecedores = memo(function Fornecedores({
@@ -16,17 +22,31 @@ export const Fornecedores = memo(function Fornecedores({
   const { dados } = ctx;
   const [editar, setEditar] = useState<Fornecedor | 'novo' | null>(null);
   const conta = useMemo(() => {
-    const c = new Map<number, { total: number; com: number }>();
+    const c = new Map<
+      number,
+      { total: number; com: number; moedas: Map<Moeda, number> }
+    >();
     for (const m of dados.materiais)
       for (const o of ofertas(m))
         if (o.fornecedor_id != null) {
-          const x = c.get(o.fornecedor_id) ?? { total: 0, com: 0 };
+          const x = c.get(o.fornecedor_id) ?? {
+            total: 0,
+            com: 0,
+            moedas: new Map(),
+          };
           x.total++;
           if (o.preco != null) x.com++;
+          const mu = moedaUsada(o, m, ctx.porId);
+          if (mu) x.moedas.set(mu, (x.moedas.get(mu) ?? 0) + 1);
           c.set(o.fornecedor_id, x);
         }
     return c;
-  }, [dados.materiais]);
+  }, [dados.materiais, ctx.porId]);
+  // A moeda que o fornecedor mais usa; nacional sem nada = Real.
+  const moedaDe = (f: Fornecedor): Moeda | null => {
+    const ms = [...(conta.get(f.id)?.moedas ?? [])].sort((a, b) => b[1] - a[1]);
+    return ms[0]?.[0] ?? (f.origem === 'nacional' ? 'BRL' : null);
+  };
   const semForn = dados.materiais.filter((m) => m.fornecedor_id == null).length;
   return (
     <div className="view">
@@ -60,6 +80,7 @@ export const Fornecedores = memo(function Fornecedores({
                 >
                   <span className="forn-n">{f.nome}</span>
                   <span className="forn-s">
+                    <Moeda3D moeda={moedaDe(f)} tamanho={16} />
                     <span className={`tag tag-${f.origem}`}>
                       {f.origem === 'nacional' ? 'Nacional' : 'Internacional'}
                     </span>

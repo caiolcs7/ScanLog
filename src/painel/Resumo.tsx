@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react';
 import type { Mudanca, Moeda } from './api';
 import type { Contexto } from './App';
 import type { Filtro } from './Lista';
+import { Moeda3D } from './Moeda3D';
 import {
   dataCurta,
   dinheiro,
@@ -498,7 +499,10 @@ function Cotacao({ moeda, ctx }: { moeda: 'USD' | 'CNY'; ctx: Contexto }) {
   if (!ult)
     return (
       <div className="cot">
-        <span className="cot-m">{MOEDAS[moeda].nome}</span>
+        <span className="cot-m">
+          <Moeda3D moeda={moeda} tamanho={22} entrada />
+          {MOEDAS[moeda].nome}
+        </span>
         <b className="cot-v">—</b>
         <span className="cot-d">Aguardando o Banco Central</span>
       </div>
@@ -522,6 +526,7 @@ function Cotacao({ moeda, ctx }: { moeda: 'USD' | 'CNY'; ctx: Contexto }) {
   return (
     <div className="cot">
       <span className="cot-m">
+        <Moeda3D moeda={moeda} tamanho={22} entrada />
         {MOEDAS[moeda].nome} <small>{MOEDAS[moeda].simbolo} 1</small>
       </span>
       <b className="cot-v">{fmt(foco?.v ?? ult.v)}</b>

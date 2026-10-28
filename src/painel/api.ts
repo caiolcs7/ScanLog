@@ -23,6 +23,8 @@ export type Material = {
   criado_por: string;
   atualizado_em: string | null;
   atualizado_por: string | null;
+  /** Só no site: moeda de cada fornecedor (1 e 2) vinda da planilha do sistema. */
+  moedas?: [Moeda | null, Moeda | null];
 };
 export type Fornecedor = {
   id: number;
@@ -128,6 +130,8 @@ type ItemRua = {
   locais: string[];
   fornecedor?: string;
   fornecedor2?: string;
+  moeda?: Moeda;
+  moeda2?: Moeda;
 };
 // ruas.json vem junto com o site: cada publicação nova já mostra as
 // localizações certas a todos, sem esperar ninguém sincronizar o banco.
@@ -138,16 +142,24 @@ const ruas = () =>
   ));
 let ruasProntas: Map<string, ItemRua> | null = null;
 
-/** Mesma regra do painel_importar: localização das ruas, o resto do banco. */
+/**
+ * A planilha do sistema (ruas.json) é a fonte da localização e, enquanto
+ * ninguém editou o material no painel, também da descrição, tipo e peso.
+ * Depois de editado, vale o que a pessoa gravou no banco.
+ */
 export function comRuas(m: Material): Material {
   const i = ruasProntas?.get(m.codigo);
   if (!i) return m;
+  const site = m.atualizado_em == null;
   return {
     ...m,
     locais: i.locais,
-    descricao: m.descricao ?? i.descricao,
-    tipo: m.tipo ?? i.tipo,
-    peso_g: m.peso_g ?? i.peso_g,
+    descricao: site
+      ? (i.descricao ?? m.descricao)
+      : (m.descricao ?? i.descricao),
+    tipo: site ? (i.tipo ?? m.tipo) : (m.tipo ?? i.tipo),
+    peso_g: site ? (i.peso_g ?? m.peso_g) : (m.peso_g ?? i.peso_g),
+    moedas: [i.moeda ?? null, i.moeda2 ?? null],
   };
 }
 const iguais = (a: string[], b: string[]) =>
@@ -209,6 +221,7 @@ export async function carregar(): Promise<Dados & { desatualizado: boolean }> {
         criado_por: '',
         atualizado_em: null,
         atualizado_por: null,
+        moedas: [i.moeda ?? null, i.moeda2 ?? null],
       });
     }
   materiais.sort((a, b) => (a.codigo < b.codigo ? -1 : 1));

@@ -1,5 +1,5 @@
 // Atualiza src/painel/ruas.json a partir da "Consulta de estoque" do sistema
-// (arquivo .xls que na verdade é CSV com ";"). Uso:
+// (arquivo .xls que na verdade é CSV com ";" ou, desde 28/10, XML do Excel). Uso:
 //   node scripts/planilha-ruas.mjs <planilha.xls> [--resumo]
 // Regras (pedidas por caio):
 // - A1 = 1º andar, A2 = 2º andar (já vem no endereço).
@@ -10,6 +10,10 @@
 // - Todo código ganha o endereço completo da planilha (R14A1C01DP01), mesmo
 //   quem já tinha o galão do Relatório (R14A1G01) naquela rua.
 // - Saldo, pedidos e demais números de estoque não entram.
+// - Moeda: se a planilha trouxer as colunas "Moeda" (vale para os dois),
+//   "Moeda importado" ou "Moeda nacional", ela vai junto de cada fornecedor.
+//   Sem a coluna, o painel mostra Real para o nacional e "a definir" para o
+//   importado.
 // - Quem já está em ruas.json mantém descrição, tipo, peso e localizações do
 //   Relatório e ganha os endereços da planilha que ainda não tinha.
 import fs from 'node:fs';
@@ -56,8 +60,42 @@ function linhas(texto) {
   }
   return r;
 }
+// ---- XML do Excel (SpreadsheetML): <Row><Cell ss:Index="n"><Data>…</Data></Cell> ----
+const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+const xmlTexto = (t) =>
+  t.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e) =>
+    e[0] === '#'
+      ? String.fromCodePoint(
+          e[1].toLowerCase() === 'x'
+            ? parseInt(e.slice(2), 16)
+            : Number(e.slice(1)),
+        )
+      : (ENT[e] ?? m),
+  );
+function linhasXml(texto) {
+  const r = [];
+  for (const [, row] of texto.matchAll(
+    /<(?:ss:)?Row\b[^>]*>([\s\S]*?)<\/(?:ss:)?Row>/g,
+  )) {
+    const l = [];
+    for (const [, attrs, cel] of row.matchAll(
+      /<(?:ss:)?Cell\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:ss:)?Cell>)/g,
+    )) {
+      const idx = /ss:Index="(\d+)"/.exec(attrs);
+      if (idx) while (l.length < Number(idx[1]) - 1) l.push('');
+      const d = /<(?:ss:)?Data\b[^>]*>([\s\S]*?)<\/(?:ss:)?Data>/.exec(
+        cel ?? '',
+      );
+      l.push(d ? xmlTexto(d[1].replace(/<[^>]+>/g, '')) : '');
+    }
+    if (l.length) r.push(l);
+  }
+  return r;
+}
 const texto = fs.readFileSync(arquivo, 'utf8').replace(/^\uFEFF/, '');
-const todas = linhas(texto);
+const todas = /^\s*<\?xml|<Workbook\b/.test(texto.slice(0, 500))
+  ? linhasXml(texto)
+  : linhas(texto);
 const cab = todas.findIndex((l) => l[0] === 'Código');
 if (cab < 0) throw new Error('Cabeçalho "Código" não encontrado.');
 const H = todas[cab];
@@ -66,17 +104,45 @@ const col = (nome) => {
   if (i < 0) throw new Error(`Coluna "${nome}" não encontrada.`);
   return i;
 };
+const talvez = (...nomes) => {
+  for (const n of nomes) {
+    const i = H.findIndex((h) => h.trim().toLowerCase() === n.toLowerCase());
+    if (i >= 0) return i;
+  }
+  return -1;
+};
 const C = {
   codigo: col('Código'),
   end: col('Código do endereço'),
   desc: col('Descrição'),
-  peso: col('Peso'),
   tipo: col('Tipo'),
   det: col('Detalhamento'),
   imp: col('Fabricante importado'),
   nac: col('Fabricante nacional'),
+  moeda: talvez('Moeda'),
+  moedaImp: talvez('Moeda importado', 'Moeda do importado'),
+  moedaNac: talvez('Moeda nacional', 'Moeda do nacional'),
 };
-const dados = todas.slice(cab + 1).filter((l) => l.length === H.length);
+// o XML não escreve as células vazias do fim da linha
+const dados = todas
+  .slice(cab + 1)
+  .filter((l) => l.length <= H.length && /\S/.test(l[0] ?? ''))
+  .map((l) => [...l, ...Array(H.length - l.length).fill('')]);
+
+// ---- moeda: "BRL", "R$", "Real", "USD", "US$", "Dólar", "CNY", "RMB", "¥", "Yuan" ----
+function moedaDe(s) {
+  const t = (s ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+  if (!t || t === '—') return null;
+  if (/^(BRL|R\$|REAL|REAIS)$/.test(t)) return 'BRL';
+  if (/^(USD|US\$|\$|DOLAR|DOLARES|DOLLAR)$/.test(t)) return 'USD';
+  if (/^(CNY|RMB|¥|YUAN|RENMINBI)$/.test(t)) return 'CNY';
+  return null;
+}
+const moedaCol = (l, i) => (i >= 0 ? moedaDe(l[i]) : null);
 
 // ---- endereços: um por "Rua R18 · Andar 1 · Coluna 6 · Lado Direito · Prateleira 02" ----
 const END =
@@ -92,16 +158,28 @@ function enderecos(det) {
   return [...new Set(r)];
 }
 
-// ---- peso: "18,00 g - IA" / "1,638 kg - IA" ----
-function peso(s) {
-  const m = /^([\d.,]+)\s*(kg|g)\b/i.exec(s.trim());
-  if (!m) return null;
-  let n = m[1];
-  n = n.includes(',') ? n.replace(/\./g, '').replace(',', '.') : n;
-  const v = Number(n) * (m[2].toLowerCase() === 'kg' ? 1000 : 1);
-  return Number.isFinite(v) && v > 0 && v < 1e8
-    ? Math.round(v * 1000) / 1000
-    : null;
+// ---- peso: só do texto "PESO: 0,235KG" / "PESO 400G" da descrição (sem unidade = kg).
+// A coluna "Peso" da planilha é estimativa de IA e nunca entra (pedido do caio).
+// Descrição com 120 caracteres vem cortada: peso colado no fim não é confiável.
+// Gramas com vírgula ("0,004G") e pesos diferentes na mesma descrição não entram.
+const PESO =
+  /\bPESO\b(?:\s*UN)?(?:\s*IA\b)?\s*:?\s*(\d[\d.,]*)\s*(KGS?|G)?(?![A-Z0-9])/gi;
+function peso(desc) {
+  const vals = new Set();
+  for (const m of desc.matchAll(PESO)) {
+    if (desc.length === 120 && m.index + m[0].length >= 118) continue;
+    let n = m[1].replace(/[.,]$/, '');
+    const kg = !m[2] || /^KG/i.test(m[2]);
+    // "0,004G" quase sempre é kg digitado errado: na dúvida, não entra
+    if (!kg && /[.,]/.test(n)) continue;
+    if (n.includes(',')) n = n.replace(/\./g, '').replace(',', '.');
+    else if (!(kg && (n.match(/\./g) ?? []).length === 1))
+      n = n.replace(/\./g, '');
+    const g = Number(n) * (kg ? 1000 : 1);
+    if (Number.isFinite(g) && g > 0 && g < 1e8)
+      vals.add(Math.round(g * 1e4) / 1e4);
+  }
+  return vals.size === 1 ? [...vals][0] : null;
 }
 
 // ---- fornecedor ----
@@ -213,7 +291,7 @@ for (const l of dados) {
             .trim()
             .slice(0, 300) || null,
         tipo,
-        peso_g: peso(l[C.peso]),
+        peso_g: peso(l[C.desc]),
         locais: [],
       };
   if (antigo) {
@@ -225,7 +303,7 @@ for (const l of dados) {
         r.locais_extra++;
       }
     item.tipo ??= tipo;
-    item.peso_g ??= peso(l[C.peso]);
+    item.peso_g ??= peso(l[C.desc]);
   } else {
     r.novos++;
     item.locais = ends;
@@ -235,12 +313,26 @@ for (const l of dados) {
   if (real.length) item.locais = real;
   if (!item.locais.length) r.sem_endereco++;
   const fs_ = fornecedores(l[C.imp], l[C.nac]);
-  for (const k of ['fornecedor', 'forn_origem', 'fornecedor2', 'forn2_origem'])
+  for (const k of [
+    'fornecedor',
+    'forn_origem',
+    'moeda',
+    'fornecedor2',
+    'forn2_origem',
+    'moeda2',
+  ])
     delete item[k];
   fs_.forEach((f, i) => {
     const suf = i ? '2' : '';
     item[`fornecedor${suf}`] = grafia.get(f.nome.toUpperCase()) ?? f.nome;
     item[`forn${suf}_origem`] = f.origem;
+    const moeda =
+      moedaCol(l, f.origem === 'nacional' ? C.moedaNac : C.moedaImp) ??
+      moedaCol(l, C.moeda);
+    if (moeda) {
+      item[`moeda${suf}`] = moeda;
+      r.moeda = (r.moeda ?? 0) + 1;
+    }
   });
   if (fs_.length) r.forn++;
   else r.sem_forn++;

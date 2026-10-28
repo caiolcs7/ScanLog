@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { Material, Moeda, Tipo } from './api';
 import type { Contexto } from './App';
+import { Moeda3D } from './Moeda3D';
 import { downloadBlob } from '../services/download';
 import {
   dinheiro,
@@ -27,6 +28,7 @@ import {
   inteiro,
   local,
   MOEDAS,
+  moedaDoMaterial,
   oferta,
   ofertas,
   ORDEM_MOEDAS,
@@ -596,6 +598,7 @@ const Linha = memo(
   function Linha({ m, vagas, cambio, porId, abrir }: PropsLinha) {
     const r = emReais(m, cambio),
       o = oferta(m),
+      mo = o ? undefined : moedaDoMaterial(m, porId),
       nomes = ofertas(m)
         .map((x) =>
           x.fornecedor_id != null ? porId.get(x.fornecedor_id)?.nome : null,
@@ -657,13 +660,19 @@ const Linha = memo(
           <span className="mat-b">
             {o ? (
               <>
-                <b className="mat-p mono">{dinheiro(o.preco!, o.moeda!)}</b>
+                <b className="mat-p mono">
+                  <Moeda3D moeda={o.moeda!} tamanho={16} />
+                  {dinheiro(o.preco!, o.moeda!)}
+                </b>
                 {o.moeda !== 'BRL' && r != null && Number.isFinite(r) && (
                   <span className="mat-r mono">≈ {reais(r)}</span>
                 )}
               </>
             ) : (
-              <span className="pill pill-sem">Sem preço</span>
+              <span className="pill pill-sem">
+                {mo !== undefined && <Moeda3D moeda={mo} tamanho={14} />}
+                Sem preço
+              </span>
             )}
             {nomes.map((n) => (
               <span key={n} className="mat-f">

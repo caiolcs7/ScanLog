@@ -19,6 +19,7 @@ import {
   lerNumero,
   local,
   MOEDAS,
+  moedaUsada,
   ofertas,
   ORDEM_MOEDAS,
   paraCampo,
@@ -30,6 +31,7 @@ import {
 import { diferencas } from './mudanca';
 import { FornecedorForm } from './Fornecedores';
 import { Confirmar, Janela, Seg } from './ui';
+import { Moeda3D } from './Moeda3D';
 
 type Campos = {
   preco: string;
@@ -45,10 +47,10 @@ type Campos = {
 };
 const deMaterial = (m?: Material): Campos => ({
   preco: paraCampo(m?.preco ?? null),
-  moeda: m?.moeda ?? 'BRL',
+  moeda: m?.moeda ?? m?.moedas?.[0] ?? 'BRL',
   fornecedor: m?.fornecedor_id != null ? String(m.fornecedor_id) : '',
   preco2: paraCampo(m?.preco2 ?? null),
-  moeda2: m?.moeda2 ?? 'BRL',
+  moeda2: m?.moeda2 ?? m?.moedas?.[1] ?? 'BRL',
   fornecedor2: m?.fornecedor2_id != null ? String(m.fornecedor2_id) : '',
   quantidade: paraCampo(m?.quantidade ?? null),
   descricao: m?.descricao ?? '',
@@ -185,6 +187,7 @@ export function Ficha({
                 o?.fornecedor_id != null
                   ? ctx.porId.get(o.fornecedor_id)
                   : undefined;
+              const mu = o ? moedaUsada(o, m, ctx.porId) : undefined;
               const rs =
                 o?.preco != null && o.moeda
                   ? o.preco * ctx.cambio[o.moeda].valor
@@ -206,6 +209,12 @@ export function Ficha({
                       </>
                     ) : (
                       '—'
+                    )}
+                    {mu !== undefined && (
+                      <span className="ficha-m">
+                        <Moeda3D moeda={mu} tamanho={20} entrada />
+                        {mu ? MOEDAS[mu].nome : 'Moeda a definir'}
+                      </span>
                     )}
                     <span className="mono ficha-p">
                       {o?.preco != null && o.moeda
@@ -403,7 +412,8 @@ function Formulario({
                 id: q,
                 nome: (
                   <>
-                    <b className="mono">{MOEDAS[q].simbolo}</b> {MOEDAS[q].nome}
+                    <Moeda3D moeda={q} tamanho={18} girar={moeda === q} />
+                    {MOEDAS[q].nome}
                   </>
                 ),
               }))}
