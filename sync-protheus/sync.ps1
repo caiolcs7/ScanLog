@@ -13,7 +13,9 @@ $Protheus = 'http://10.10.10.3:8600/rest/MACWS009/consultar/produto'
 $Supabase = 'https://pygedyytlcplfweibenv.supabase.co/rest/v1/rpc/'
 $Chave = 'sb_publishable_Wo0BJpc1B3O8Feog9to3yQ_PcBZfNcQ'
 $Tamanho = 100   # paginas de 500 ou mais o servidor devolve vazias
-$Juntas = 8      # cada consulta leva ~50 s no servidor; varias ao mesmo tempo
+# Cada consulta leva ~50 s no servidor; varias ao mesmo tempo. De madrugada
+# ninguem usa o Protheus, entao vai com mais.
+$Juntas = $(if ((Get-Date).Hour -lt 6) { 16 } else { 8 })
 $Lote = 500      # itens por envio ao Supabase
 
 $LogFile = Join-Path $Dir 'sync.log'
@@ -59,27 +61,32 @@ function Ler([string]$f) {
   return $null
 }
 
-# Baixa varias paginas ao mesmo tempo ($Juntas por vez), com uma segunda
-# tentativa para as que falharem. Usa curl.exe porque o servidor responde 204
-# com corpo, e o Invoke-RestMethod recusa isso. Devolve @{ "pagina-tamanho" = json }.
+# Baixa varias paginas ao mesmo tempo: mantem $Juntas consultas rodando e,
+# quando uma termina, ja comeca a proxima (uma pagina lenta nao segura as
+# outras). Uma tentativa so: falha aqui e quase sempre registro com defeito, e
+# quem chama divide a pagina. Usa curl.exe porque o servidor responde 204 com
+# corpo, e o Invoke-RestMethod recusa isso. Devolve @{ "pagina-tamanho" = json }.
 function Baixar($pedidos) {
   $res = @{}
-  for ($t = 1; $t -le 2; $t++) {
-    $pend = @($pedidos | Where-Object { -not $res.ContainsKey((Chave $_)) })
-    if ($pend.Count -eq 0) { break }
-    for ($i = 0; $i -lt $pend.Count; $i += $Juntas) {
-      $grupo = @($pend[$i..([Math]::Min($i + $Juntas, $pend.Count) - 1)])
-      $procs = foreach ($q in $grupo) {
-        $f = Join-Path $Tmp ((Chave $q) + '.json')
-        Remove-Item $f -ErrorAction SilentlyContinue
-        $url = $Protheus + '?Page=' + $q.p + '&pageSize=' + $q.s
-        Start-Process curl.exe -WindowStyle Hidden -PassThru `
-          -ArgumentList @('-s', '-m', '240', '-H', "`"@$CabFile`"", '-o', "`"$f`"", "`"$url`"")
-      }
-      $procs | Wait-Process
-      foreach ($q in $grupo) {
-        $j = Ler (Join-Path $Tmp ((Chave $q) + '.json'))
-        if ($j) { $res[(Chave $q)] = $j }
+  $fila = New-Object System.Collections.Queue
+  foreach ($q in $pedidos) { $fila.Enqueue($q) }
+  $ativos = New-Object System.Collections.ArrayList
+  while ($fila.Count -or $ativos.Count) {
+    while ($ativos.Count -lt $Juntas -and $fila.Count) {
+      $q = $fila.Dequeue()
+      $f = Join-Path $Tmp ((Chave $q) + '.json')
+      Remove-Item $f -ErrorAction SilentlyContinue
+      $url = $Protheus + '?Page=' + $q.p + '&pageSize=' + $q.s
+      $proc = Start-Process curl.exe -WindowStyle Hidden -PassThru `
+        -ArgumentList @('-s', '-m', '240', '-H', "`"@$CabFile`"", '-o', "`"$f`"", "`"$url`"")
+      [void]$ativos.Add(@{ q = $q; proc = $proc; f = $f })
+    }
+    Start-Sleep -Milliseconds 300
+    foreach ($a in @($ativos)) {
+      if ($a.proc.HasExited) {
+        $j = Ler $a.f
+        if ($j) { $res[(Chave $a.q)] = $j }
+        $ativos.Remove($a)
       }
     }
   }
@@ -135,62 +142,64 @@ try {
 
 $completo = $false
 try {
+  # Paginas de 100 em blocos de 2x$Juntas. As que falham ficam para o fim e
+  # la sao divididas de 10 em 10 e depois de 1 em 1, pulando so o item com
+  # defeito.
   $pagina = 1
   $vazias = 0
+  $fim = $null
+  $falhas = New-Object System.Collections.ArrayList
   while ($true) {
-    $bloco = @($pagina..($pagina + $Juntas - 1) | ForEach-Object { @{ p = $_; s = $Tamanho } })
+    $n = 2 * $Juntas
+    $bloco = @($pagina..($pagina + $n - 1) | ForEach-Object { @{ p = $_; s = $Tamanho } })
     $res = Baixar $bloco
-    $fim = $null
     foreach ($q in $bloco) {
       $j = $res[(Chave $q)]
       if ($j) {
         Guardar $j
         if (-not $j.hasNext -and ($null -eq $fim -or $q.p -lt $fim)) { $fim = $q.p }
-      }
+      } else { [void]$falhas.Add($q) }
     }
-    # Paginas que falharam antes do fim da lista: pode ser um registro com
-    # defeito. Tenta de 10 em 10, e as de 10 que falharem, de 1 em 1, pulando
-    # so o item que nao vem.
-    $falhas = @($bloco | Where-Object { -not $res.ContainsKey((Chave $_)) -and ($null -eq $fim -or $_.p -lt $fim) })
-    if ($falhas.Count -eq $bloco.Count) {
+    Log "ate a pagina $($pagina + $n - 1): $($script:lidos) lidos, $($script:gravados) gravados, $($falhas.Count) paginas para dividir"
+    if ($null -ne $fim -or $Teste) { break }
+    if ($res.Count -eq 0) {
       # Nada veio: fim da lista ou Protheus fora do ar.
       $vazias++
-      Log "paginas $pagina a $($pagina + $Juntas - 1) sem nenhum item ($vazias)"
       if ($vazias -ge 2) { break }
-      $pagina += $Juntas
-      continue
-    }
-    $vazias = 0
-    if ($falhas.Count) {
-      Log ("paginas que falharam, dividindo: " + (($falhas | ForEach-Object { $_.p }) -join ', '))
-      $subs = @(foreach ($f in $falhas) { foreach ($k in 1..10) { @{ p = ($f.p - 1) * 10 + $k; s = 10 } } })
-      $rs = Baixar $subs
-      $unid = @()
-      foreach ($f in $falhas) {
-        $irmas = @($subs | Where-Object { [Math]::Ceiling($_.p / 10) -eq $f.p })
-        $ok = @($irmas | Where-Object { $rs.ContainsKey((Chave $_)) })
-        foreach ($q in $ok) { Guardar $rs[(Chave $q)] }
-        # Se nenhuma de 10 veio, a pagina inteira esta depois do fim da lista.
-        if ($ok.Count -eq 0) { continue }
-        foreach ($q in $irmas) {
-          if (-not $rs.ContainsKey((Chave $q))) {
-            $unid += @(foreach ($k in 1..10) { @{ p = ($q.p - 1) * 10 + $k; s = 1 } })
-          }
-        }
-      }
-      if ($unid.Count) {
-        $ru = Baixar $unid
-        foreach ($q in $unid) {
-          if ($ru.ContainsKey((Chave $q))) { Guardar $ru[(Chave $q)] }
-          else { $script:pulados++; Log "item $($q.p) pulado (Protheus nao devolve)" }
-        }
-      }
-    }
-    Log "ate a pagina $($pagina + $Juntas - 1): $($script:lidos) lidos, $($script:gravados) gravados"
-    if ($null -ne $fim) { $completo = $true; break }
-    if ($Teste) { break }
-    $pagina += $Juntas
+    } else { $vazias = 0 }
+    $pagina += $n
   }
+  $falhas = @($falhas | Where-Object { $null -eq $fim -or $_.p -lt $fim })
+  # Os dois ultimos blocos vazios (fim da lista ou Protheus fora) nao sao
+  # paginas com defeito.
+  if ($vazias -ge 2) { $falhas = @($falhas | Where-Object { $_.p -lt $pagina - $n }) }
+  if ($Teste) { $falhas = @() }
+  if ($falhas.Count) {
+    Log ("dividindo " + $falhas.Count + " paginas: " + (($falhas | ForEach-Object { $_.p }) -join ', '))
+    $subs = @(foreach ($f in $falhas) { foreach ($k in 1..10) { @{ p = ($f.p - 1) * 10 + $k; s = 10 } } })
+    $rs = Baixar $subs
+    $unid = @()
+    foreach ($f in $falhas) {
+      $irmas = @($subs | Where-Object { [Math]::Ceiling($_.p / 10) -eq $f.p })
+      $ok = @($irmas | Where-Object { $rs.ContainsKey((Chave $_)) })
+      foreach ($q in $ok) { Guardar $rs[(Chave $q)] }
+      # Se nenhuma de 10 veio, a pagina inteira esta depois do fim da lista.
+      if ($ok.Count -eq 0) { continue }
+      foreach ($q in $irmas) {
+        if (-not $rs.ContainsKey((Chave $q))) {
+          $unid += @(foreach ($k in 1..10) { @{ p = ($q.p - 1) * 10 + $k; s = 1 } })
+        }
+      }
+    }
+    if ($unid.Count) {
+      $ru = Baixar $unid
+      foreach ($q in $unid) {
+        if ($ru.ContainsKey((Chave $q))) { Guardar $ru[(Chave $q)] }
+        else { $script:pulados++; Log "item $($q.p) pulado (Protheus nao devolve)" }
+      }
+    }
+  }
+  $completo = $null -ne $fim
   Enviar
 } catch {
   Log "ERRO: $($_.Exception.Message)"
