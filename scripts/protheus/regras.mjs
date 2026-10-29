@@ -8,7 +8,8 @@ export function posicoes(d) {
   d = String(d || '');
   const m = /\*?\s*ESTOQUE\b\s*:?([\s\S]*)$/i.exec(lastEstoque(d));
   if (!m) return [];
-  const txt = m[1].toUpperCase();
+  // Endereços de container (EXTA1C75P00) não são galão.
+  const txt = m[1].toUpperCase().replace(/EXT\w*/g, ' ');
   const out = [];
   const re = /R\s*(\d{1,2})|([GCB])\s*(\d{1,4})(S?)|\bA\b|(\d{1,4})(S?)/g;
   let rua = null,
@@ -68,18 +69,22 @@ export const chave = (p) =>
   `R${String(p.rua).padStart(2, '0')}${p.andar}|${p.letra}${p.n}`;
 
 // Peso em gramas do texto "PESO: 1,149KG" / "PESO 59 G". Sem unidade = kg.
-// Devolve null quando não há peso legível (0, vários diferentes, "PESO: KG").
+// Devolve null quando não há peso legível (0, vários diferentes, "PESO: KG",
+// grama com vírgula).
 export function pesoG(d) {
   const re = /\bPESO\b\s*(?:IA\b)?\s*:?\s*([\d.,]+)\s*(KGS?|G)?\b/gi;
   const vals = new Set();
   let x;
   while ((x = re.exec(String(d || '')))) {
+    const emG = (x[2] || 'KG').toUpperCase() === 'G';
+    // "1,200G" e "1.660 g": não dá para saber se é grama ou milhar.
+    if (emG && /[.,]/.test(x[1])) continue;
     let num = x[1].replace(/\.(?=\d{3}(\D|$))/g, '');
     num = num.replace(',', '.');
     if ((num.match(/\./g) || []).length > 1) continue;
     const v = parseFloat(num);
     if (!isFinite(v) || v <= 0) continue;
-    const g = (x[2] || 'KG').toUpperCase() === 'G' ? v : v * 1000;
+    const g = emG ? v : v * 1000;
     vals.add(Math.round(g * 1000) / 1000);
   }
   return vals.size === 1 ? [...vals][0] : null;
