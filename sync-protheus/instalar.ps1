@@ -41,7 +41,7 @@ if (Test-Path $mig) { $sql = (Get-Content $mig -Raw -Encoding UTF8) + "`r`n" + $
 Set-Clipboard -Value $sql
 Write-Host ''
 Write-Host 'O SQL ja esta copiado. Abra o Supabase > SQL Editor, cole (Ctrl+V) e clique Run.'
-Read-Host 'Depois de rodar no Supabase, aperte Enter para um teste rapido (3 paginas, uns 3 minutos)' | Out-Null
+Read-Host 'Depois de rodar no Supabase, aperte Enter para um teste rapido (8 paginas, 1 a 2 minutos)' | Out-Null
 
 & (Join-Path $Dir 'sync.ps1') -Teste
 Write-Host ''
