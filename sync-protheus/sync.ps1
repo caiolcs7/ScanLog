@@ -138,10 +138,10 @@ try {
   $pagina = 1
   $vazias = 0
   while ($true) {
-    $lote = @($pagina..($pagina + $Juntas - 1) | ForEach-Object { @{ p = $_; s = $Tamanho } })
-    $res = Baixar $lote
+    $bloco = @($pagina..($pagina + $Juntas - 1) | ForEach-Object { @{ p = $_; s = $Tamanho } })
+    $res = Baixar $bloco
     $fim = $null
-    foreach ($q in $lote) {
+    foreach ($q in $bloco) {
       $j = $res[(Chave $q)]
       if ($j) {
         Guardar $j
@@ -151,8 +151,8 @@ try {
     # Paginas que falharam antes do fim da lista: pode ser um registro com
     # defeito. Tenta de 10 em 10, e as de 10 que falharem, de 1 em 1, pulando
     # so o item que nao vem.
-    $falhas = @($lote | Where-Object { -not $res.ContainsKey((Chave $_)) -and ($null -eq $fim -or $_.p -lt $fim) })
-    if ($falhas.Count -eq $lote.Count) {
+    $falhas = @($bloco | Where-Object { -not $res.ContainsKey((Chave $_)) -and ($null -eq $fim -or $_.p -lt $fim) })
+    if ($falhas.Count -eq $bloco.Count) {
       # Nada veio: fim da lista ou Protheus fora do ar.
       $vazias++
       Log "paginas $pagina a $($pagina + $Juntas - 1) sem nenhum item ($vazias)"
