@@ -144,22 +144,27 @@ const ruas = () =>
 let ruasProntas: Map<string, ItemRua> | null = null;
 let protheus: Map<string, Produto> | null = null;
 
-/** Cópia do Protheus; se a tabela falhar, o painel abre sem ela. */
-async function doProtheus() {
+/**
+ * Cópia do Protheus, só dos códigos do painel (a tabela tem mais de 100 mil).
+ * Se a tabela falhar, o painel abre sem ela.
+ */
+async function doProtheus(codigos: string[]) {
   try {
     const db = await supabase(),
-      linhas: Produto[] = [];
-    for (let de = 0; ; de += 1000) {
-      const { data, error } = await db
-        .from('protheus_produtos')
-        .select('codigo,descricao,tipo,saldo_estoque,custo,moeda')
-        .order('codigo')
-        .range(de, de + 999);
-      if (error) throw error;
-      linhas.push(...(data as Produto[]));
-      if (data.length < 1000) break;
-    }
-    return new Map(linhas.map((p) => [p.codigo, p]));
+      lotes: string[][] = [];
+    for (let i = 0; i < codigos.length; i += 150)
+      lotes.push(codigos.slice(i, i + 150));
+    const partes = await Promise.all(
+      lotes.map(async (lote) => {
+        const { data, error } = await db
+          .from('protheus_produtos')
+          .select('codigo,descricao,tipo,saldo_estoque,custo,moeda')
+          .in('codigo', lote);
+        if (error) throw error;
+        return data as Produto[];
+      }),
+    );
+    return new Map(partes.flat().map((p) => [p.codigo, p]));
   } catch (e) {
     console.warn('Protheus indisponível', e);
     return new Map<string, Produto>();
@@ -195,26 +200,27 @@ const iguais = (a: string[], b: string[]) =>
 export async function carregar(): Promise<Dados & { desatualizado: boolean }> {
   const db = await supabase();
   const desde = new Date(Date.now() - 95 * 864e5).toISOString().slice(0, 10);
-  const [doBanco, fornecedores, cotacoes, mudancas, itens, prot] =
-    await Promise.all([
-      tudo<Material>('painel_materiais', 'codigo'),
-      tudo<Fornecedor>('painel_fornecedores', 'nome'),
-      db
-        .from('painel_cotacoes')
-        .select('moeda,data,valor')
-        .gte('data', desde)
-        .order('data'),
-      db
-        .from('painel_historico')
-        .select('*')
-        .order('em', { ascending: false })
-        .limit(30),
-      ruas(),
-      doProtheus(),
-    ]);
+  const [doBanco, fornecedores, cotacoes, mudancas, itens] = await Promise.all([
+    tudo<Material>('painel_materiais', 'codigo'),
+    tudo<Fornecedor>('painel_fornecedores', 'nome'),
+    db
+      .from('painel_cotacoes')
+      .select('moeda,data,valor')
+      .gte('data', desde)
+      .order('data'),
+    db
+      .from('painel_historico')
+      .select('*')
+      .order('em', { ascending: false })
+      .limit(30),
+    ruas(),
+  ]);
   if (cotacoes.error) throw erro(cotacoes.error);
   if (mudancas.error) throw erro(mudancas.error);
   ruasProntas = itens;
+  const prot = await doProtheus([
+    ...new Set([...doBanco.map((m) => m.codigo), ...itens.keys()]),
+  ]);
   protheus = prot;
   const no = new Set(doBanco.map((m) => m.codigo)),
     nome = new Map(
