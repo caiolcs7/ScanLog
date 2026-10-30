@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { cloudError, supabase } from '../cloud/client';
+import { comProtheus, type Produto } from './protheus';
 
 export type Moeda = 'BRL' | 'USD' | 'CNY';
 export type Tipo = 'MP' | 'PI' | 'PA';
@@ -141,6 +142,34 @@ const ruas = () =>
     (m) => new Map((m.default as ItemRua[]).map((i) => [i.codigo, i])),
   ));
 let ruasProntas: Map<string, ItemRua> | null = null;
+let protheus: Map<string, Produto> | null = null;
+
+/**
+ * Cópia do Protheus, só dos códigos do painel (a tabela tem mais de 100 mil).
+ * Se a tabela falhar, o painel abre sem ela.
+ */
+async function doProtheus(codigos: string[]) {
+  try {
+    const db = await supabase(),
+      lotes: string[][] = [];
+    for (let i = 0; i < codigos.length; i += 150)
+      lotes.push(codigos.slice(i, i + 150));
+    const partes = await Promise.all(
+      lotes.map(async (lote) => {
+        const { data, error } = await db
+          .from('protheus_produtos')
+          .select('codigo,descricao,tipo,saldo_estoque,custo,moeda')
+          .in('codigo', lote);
+        if (error) throw error;
+        return data as Produto[];
+      }),
+    );
+    return new Map(partes.flat().map((p) => [p.codigo, p]));
+  } catch (e) {
+    console.warn('Protheus indisponível', e);
+    return new Map<string, Produto>();
+  }
+}
 
 /**
  * A planilha do sistema (ruas.json) é a fonte da localização e, enquanto
@@ -148,6 +177,9 @@ let ruasProntas: Map<string, ItemRua> | null = null;
  * Depois de editado, vale o que a pessoa gravou no banco.
  */
 export function comRuas(m: Material): Material {
+  return comProtheus(soRuas(m), protheus?.get(m.codigo));
+}
+function soRuas(m: Material): Material {
   const i = ruasProntas?.get(m.codigo);
   if (!i) return m;
   const site = m.atualizado_em == null;
@@ -186,6 +218,10 @@ export async function carregar(): Promise<Dados & { desatualizado: boolean }> {
   if (cotacoes.error) throw erro(cotacoes.error);
   if (mudancas.error) throw erro(mudancas.error);
   ruasProntas = itens;
+  const prot = await doProtheus([
+    ...new Set([...doBanco.map((m) => m.codigo), ...itens.keys()]),
+  ]);
+  protheus = prot;
   const no = new Set(doBanco.map((m) => m.codigo)),
     nome = new Map(
       fornecedores.map((f) => [f.nome.trim().toLowerCase(), f.id]),
@@ -195,7 +231,7 @@ export async function carregar(): Promise<Dados & { desatualizado: boolean }> {
   let desatualizado = false;
   const materiais = doBanco.map((m) => {
     const c = comRuas(m);
-    if (c !== m && !iguais(c.locais, m.locais)) desatualizado = true;
+    if (!iguais(c.locais, m.locais)) desatualizado = true;
     return c;
   });
   // Código novo das ruas que o banco ainda não tem: aparece já, sem preço.
@@ -203,26 +239,31 @@ export async function carregar(): Promise<Dados & { desatualizado: boolean }> {
     if (!no.has(i.codigo)) {
       desatualizado = true;
       const f1 = idDe(i.fornecedor);
-      materiais.push({
-        codigo: i.codigo,
-        descricao: i.descricao,
-        tipo: i.tipo,
-        peso_g: i.peso_g,
-        locais: i.locais,
-        fornecedor_id: f1,
-        preco: null,
-        moeda: null,
-        fornecedor2_id: f1 == null ? null : idDe(i.fornecedor2),
-        preco2: null,
-        moeda2: null,
-        quantidade: null,
-        origem: 'ruas',
-        criado_em: '',
-        criado_por: '',
-        atualizado_em: null,
-        atualizado_por: null,
-        moedas: [i.moeda ?? null, i.moeda2 ?? null],
-      });
+      materiais.push(
+        comProtheus(
+          {
+            codigo: i.codigo,
+            descricao: i.descricao,
+            tipo: i.tipo,
+            peso_g: i.peso_g,
+            locais: i.locais,
+            fornecedor_id: f1,
+            preco: null,
+            moeda: null,
+            fornecedor2_id: f1 == null ? null : idDe(i.fornecedor2),
+            preco2: null,
+            moeda2: null,
+            quantidade: null,
+            origem: 'ruas',
+            criado_em: '',
+            criado_por: '',
+            atualizado_em: null,
+            atualizado_por: null,
+            moedas: [i.moeda ?? null, i.moeda2 ?? null],
+          },
+          prot.get(i.codigo),
+        ),
+      );
     }
   materiais.sort((a, b) => (a.codigo < b.codigo ? -1 : 1));
   return {
