@@ -96,11 +96,16 @@ const state = JSON.parse(m[2]);
 
 // PROTHEUS_JSON=<arquivo> usa uma lista local no lugar do Supabase (testes).
 const local = process.env.PROTHEUS_JSON;
+// Última leitura que gravou de verdade; se ainda está acabando (só refazendo
+// páginas que falharam), vale a hora de agora.
 const ultima = local
   ? { terminado_em: new Date().toISOString() }
   : get(
-      'protheus_execucoes?select=*&terminado_em=not.is.null&lidos=gt.1000&order=id.desc&limit=1',
-    )[0];
+      'protheus_execucoes?select=*&gravados=gt.1000&order=id.desc&limit=1',
+    ).map((e) => ({
+      ...e,
+      terminado_em: e.terminado_em ?? new Date().toISOString(),
+    }))[0];
 const conhecidos = new Set([
   ...Object.keys(state.ad || {}),
   ...Object.keys(state.inf || {}),
@@ -250,17 +255,21 @@ for (const [codigo, r] of px) {
   }
 
   // Saiu do galão só se o texto antigo apontava para ele, o novo aponta para
-  // outro lugar e o código já está nesse outro lugar (senão some do Relatório).
-  const colocado = [...chaves].some((k) => {
+  // um galão que o antigo não tinha (troca de galão) e o código já está nesse
+  // galão novo (senão some do Relatório). Galão que só sumiu do texto fica
+  // como estava (caio, 28/10).
+  const antigas = new Set(
+    posicoes(antigo)
+      .map((p) => resolver(p, codigo))
+      .map((p) => `${p.rua}|${p.g}`),
+  );
+  const trocou = [...chaves].some((k) => {
     const [rua, g] = k.split('|');
-    return state.ru[rua]?.g[g]?.i.some((x) => x.c === codigo);
-  });
-  if (antigo && antigo !== novo && colocado) {
-    const antigas = new Set(
-      posicoes(antigo)
-        .map((p) => resolver(p, codigo))
-        .map((p) => `${p.rua}|${p.g}`),
+    return (
+      !antigas.has(k) && state.ru[rua]?.g[g]?.i.some((x) => x.c === codigo)
     );
+  });
+  if (antigo && antigo !== novo && trocou) {
     for (const { rua, g } of atuais) {
       const k = `${rua}|${g}`;
       if (antigas.has(k) && !chaves.has(k)) {

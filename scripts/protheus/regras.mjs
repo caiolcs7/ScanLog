@@ -79,7 +79,9 @@ export function pesoG(d) {
     const emG = (x[2] || 'KG').toUpperCase() === 'G';
     // "1,200G" e "1.660 g": não dá para saber se é grama ou milhar.
     if (emG && /[.,]/.test(x[1])) continue;
-    let num = x[1].replace(/\.(?=\d{3}(\D|$))/g, '');
+    // "1.782 KG" é 1,782 kg; ponto só é milhar quando há vírgula depois
+    // ("1.234,5").
+    let num = /\..*,/.test(x[1]) ? x[1].replace(/\./g, '') : x[1];
     num = num.replace(',', '.');
     if ((num.match(/\./g) || []).length > 1) continue;
     const v = parseFloat(num);
