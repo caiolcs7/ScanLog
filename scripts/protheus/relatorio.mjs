@@ -40,7 +40,18 @@ if (!entrada || !saida) {
 function get(caminho) {
   const out = execFileSync(
     'curl',
-    ['-sS', '--fail', '-H', `apikey: ${CHAVE}`, `${SUPABASE}/${caminho}`],
+    [
+      '-sS',
+      '--fail',
+      '--retry',
+      '4',
+      '--retry-all-errors',
+      '--retry-delay',
+      '5',
+      '-H',
+      `apikey: ${CHAVE}`,
+      `${SUPABASE}/${caminho}`,
+    ],
     {
       maxBuffer: 256 * 1024 * 1024,
     },
@@ -48,16 +59,32 @@ function get(caminho) {
   return JSON.parse(out.toString('utf8'));
 }
 
-// Todos os produtos, de 1000 em 1000 (limite do Supabase por consulta).
-function produtos() {
+// A tabela tem centenas de milhares de códigos; só interessam os que já
+// estão no Relatório e os que têm "ESTOQUE" (galão) no descritivo.
+function paginado(filtro) {
   const todos = [];
   for (let de = 0; ; de += 1000) {
     const parte = get(
-      `protheus_produtos?select=*&order=codigo&offset=${de}&limit=1000`,
+      `protheus_produtos?select=*&${filtro}&order=codigo&offset=${de}&limit=1000`,
     );
     todos.push(...parte);
     if (parte.length < 1000) return todos;
   }
+}
+function produtos(codigos) {
+  const porCodigo = new Map();
+  for (const r of paginado('descricao=ilike.*ESTOQUE*'))
+    porCodigo.set(r.codigo, r);
+  const faltam = [...codigos].filter((c) => !porCodigo.has(c));
+  for (let i = 0; i < faltam.length; i += 150) {
+    const lista = faltam
+      .slice(i, i + 150)
+      .map((c) => `"${c.replace(/"/g, '')}"`)
+      .join(',');
+    for (const r of paginado(`codigo=in.(${encodeURIComponent(lista)})`))
+      porCodigo.set(r.codigo, r);
+  }
+  return [...porCodigo.values()];
 }
 
 const RE_STATE =
@@ -74,7 +101,16 @@ const ultima = local
   : get(
       'protheus_execucoes?select=*&terminado_em=not.is.null&lidos=gt.1000&order=id.desc&limit=1',
     )[0];
-const linhas = local ? JSON.parse(fs.readFileSync(local, 'utf8')) : produtos();
+const conhecidos = new Set([
+  ...Object.keys(state.ad || {}),
+  ...Object.keys(state.inf || {}),
+]);
+for (const r of Object.values(state.ru || {}))
+  for (const gv of Object.values(r.g || {}))
+    for (const it of gv.i || []) if (it.c) conhecidos.add(it.c);
+const linhas = local
+  ? JSON.parse(fs.readFileSync(local, 'utf8'))
+  : produtos(conhecidos);
 const px = new Map(linhas.map((r) => [r.codigo, r]));
 
 // Mesma chave de tradução da página: trKey(d) = core(d) sem "*ESTOQUE".
