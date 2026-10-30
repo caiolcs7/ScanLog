@@ -18,10 +18,12 @@
 // - Código entra no galão que o descritivo aponta. Sai de um galão só quando o
 //   descritivo antigo apontava para ele e o novo aponta para outro lugar (um
 //   código ocupa vários galões no físico que o texto não lista).
-// - Só entra sozinho em galão existente e sem material (ou só com "SEM
-//   CODIGO", que é trocado pelo código). Galão novo, ocupado,
-//   marcado vazio ou com outro código no levantamento vai para conferência.
-//   R12A1 não recebe parafuso, porca nem arruela.
+// - A API é a informação mais correta (caio, 30/10): o código entra no galão
+//   que ela aponta mesmo que o galão já tenha outro material (um galão guarda
+//   vários itens), esteja marcado vazio (deixa de ser), passe do último galão
+//   da rua (a rua cresce) ou o levantamento diga outro código (a API vale).
+//   "SEM CODIGO" no galão é trocado pelo código. R12A1 não recebe parafuso,
+//   porca nem arruela.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { posicoes, pesoG } from './regras.mjs';
@@ -221,36 +223,41 @@ for (const [codigo, r] of px) {
     const ru = state.ru[p.rua];
     if (!ru) continue;
     if (atuais.some((a) => a.rua === p.rua && a.g === p.g)) continue;
-    // A página mostra os galões 1..k[letra].n; os vazios nem ficam em g.
-    const existe = p.n <= (ru.k?.[p.letra]?.n || 0);
-    let gal = ru.g[p.g] || (existe ? { i: [], v: false, pc: [] } : null);
-    // Só preenche galão que existe e está sem material. Galão novo, ocupado
-    // por outro código, marcado vazio ou com outro código no levantamento vai
-    // para a lista de conferência (o texto do Protheus às vezes tem erro de
-    // digitação: G41 no lugar de G241).
-    const motivo = !gal
-      ? 'galão além do último da rua'
-      : gal.v
-        ? 'galão marcado vazio'
-        : gal.i.some((x) => !semCodigo(x.c))
-          ? `galão já tem ${gal.i.map((x) => x.c).join(', ')}`
-          : (gal.pc || []).some((x) => x.c && x.c !== codigo)
-            ? `levantamento diz ${gal.pc.map((x) => x.c).join(', ')}`
-            : null;
-    if (motivo) {
-      resumo.conferir.push({ codigo, rua: p.rua, g: p.g, motivo });
-      continue;
-    }
     if (p.rua === 'R12A1' && /\b(PARAFUSO|PORCA|ARRUELA)\b/i.test(novo))
       continue;
-    ru.g[p.g] = gal;
+    // A página mostra os galões 1..k[letra].n; os vazios nem ficam em g.
+    ru.k ??= {};
+    const ultimo = ru.k[p.letra]?.n || 0;
+    let gal = ru.g[p.g];
+    const obs = [];
+    if (p.n > ultimo) {
+      ru.k[p.letra] = { ...ru.k[p.letra], n: p.n };
+      obs.push(`rua passou de ${ultimo} para ${p.n}`);
+    }
+    if (!gal) gal = ru.g[p.g] = { i: [], v: false, pc: [] };
+    if (gal.v) {
+      gal.v = false;
+      obs.push('deixou de ser vazio');
+    }
     // "SEM CODIGO" (amarelo) vira o código que o Protheus aponta.
     gal.i = gal.i.filter((x) => !semCodigo(x.c));
+    const outros = gal.i.map((x) => x.c);
+    if (outros.length) obs.push(`junto com ${outros.join(', ')}`);
+    if ((gal.pc || []).some((x) => x.c && x.c !== codigo))
+      obs.push(`levantamento dizia ${gal.pc.map((x) => x.c).join(', ')}`);
     const item = { c: codigo, d: novo, p: peso };
     const t = tipoOk(r.tipo);
     if (t) item.t = t;
     gal.i.push(item);
-    if (Array.isArray(gal.pc)) gal.pc = gal.pc.filter((x) => x.c !== codigo);
+    // A API resolveu a dúvida do levantamento.
+    if (Array.isArray(gal.pc)) gal.pc = [];
+    if (obs.length)
+      resumo.conferir.push({
+        codigo,
+        rua: p.rua,
+        g: p.g,
+        motivo: obs.join('; '),
+      });
     resumo.entrou.push({ codigo, rua: p.rua, g: p.g });
   }
 
