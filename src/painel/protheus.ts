@@ -4,7 +4,8 @@ import type { Material, Moeda, Tipo } from './api';
  * Cópia diária do Protheus (tabela protheus_produtos, gravada pelo
  * sync-protheus no PC da empresa). Completa o que ninguém editou no painel:
  * descritivo, tipo, peso (do texto "PESO ... KG"), quantidade (saldo) e preço
- * (custo na moeda do Protheus). O que alguém gravou no painel sempre vale.
+ * (custo na moeda do Protheus). O que alguém gravou no painel vale, menos o
+ * preço: o custo do Protheus (com moeda conhecida e > 0) sempre vence.
  */
 export type Produto = {
   codigo: string;
@@ -60,7 +61,7 @@ export function comProtheus(m: Material, p: Produto | undefined): Material {
     desc = p.descricao?.trim() || null,
     tipo = TIPOS.has(p.tipo ?? '') ? (p.tipo as Tipo) : null,
     moeda = moedaProtheus(p.moeda),
-    comPreco = m.preco == null && moeda != null && (p.custo ?? 0) > 0;
+    comPreco = moeda != null && (p.custo ?? 0) > 0;
   return {
     ...m,
     descricao: site ? (desc ?? m.descricao) : (m.descricao ?? desc),
