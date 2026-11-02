@@ -43,6 +43,16 @@ const ESTILO: Record<CodMoeda, Estilo> = {
   },
   USD: { borda: PRATA, campo: PRATA, simbolo: '$', verso: 'USD', estrelas: 13 },
   CNY: { borda: OURO_CN, campo: OURO_CN, simbolo: '¥', verso: '元', pontos: 8 },
+  EUR: {
+    borda: OURO,
+    anel: OURO,
+    campo: PRATA,
+    miolo: 0.6,
+    simbolo: '€',
+    verso: '€',
+    sub: 'EURO',
+    estrelas: 12,
+  },
   XXX: { borda: ACO, campo: ACO, simbolo: '?', verso: '?' },
 };
 const SERIF = '"Georgia","Times New Roman",serif';

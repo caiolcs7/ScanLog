@@ -140,6 +140,7 @@ function moedaDe(s) {
   if (/^(BRL|R\$|REAL|REAIS)$/.test(t)) return 'BRL';
   if (/^(USD|US\$|\$|DOLAR|DOLARES|DOLLAR)$/.test(t)) return 'USD';
   if (/^(CNY|RMB|¥|YUAN|RENMINBI)$/.test(t)) return 'CNY';
+  if (/^(EUR|€|EURO|EUROS)$/.test(t)) return 'EUR';
   return null;
 }
 const moedaCol = (l, i) => (i >= 0 ? moedaDe(l[i]) : null);

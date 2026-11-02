@@ -145,7 +145,13 @@ function fab(v) {
     .trim();
   return !v || SEM_FAB.test(v) ? '' : v;
 }
-const MOEDA = { REAL: 'BRL', DÓLAR: 'USD', DOLAR: 'USD', YUAN: 'CNY' };
+const MOEDA = {
+  REAL: 'BRL',
+  DÓLAR: 'USD',
+  DOLAR: 'USD',
+  YUAN: 'CNY',
+  EURO: 'EUR',
+};
 
 // Onde cada código está hoje: codigo -> [{rua, g, item}]
 const onde = new Map();

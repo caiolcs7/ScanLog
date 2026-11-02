@@ -20,6 +20,7 @@ const MOEDAS: Record<string, Moeda> = {
   REAL: 'BRL',
   DOLAR: 'USD',
   YUAN: 'CNY',
+  EURO: 'EUR',
 };
 /** "Real", "Dólar", "Yuan"; "Estrutura", "Euro"... ficam sem moeda. */
 export function moedaProtheus(m: string | null): Moeda | null {
