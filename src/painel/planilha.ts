@@ -102,7 +102,7 @@ export async function planilha(
   t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TINTA } };
   ws.getRow(1).height = 30;
   ws.mergeCells(`A2:${ultima}2`);
-  const cot = (['USD', 'CNY'] as const)
+  const cot = (['USD', 'CNY', 'EUR'] as const)
     .filter((m) => Number.isFinite(c[m].valor))
     .map(
       (m) =>

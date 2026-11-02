@@ -145,7 +145,13 @@ function fab(v) {
     .trim();
   return !v || SEM_FAB.test(v) ? '' : v;
 }
-const MOEDA = { REAL: 'BRL', DÓLAR: 'USD', DOLAR: 'USD', YUAN: 'CNY' };
+const MOEDA = {
+  REAL: 'BRL',
+  DÓLAR: 'USD',
+  DOLAR: 'USD',
+  YUAN: 'CNY',
+  EURO: 'EUR',
+};
 
 // Onde cada código está hoje: codigo -> [{rua, g, item}]
 const onde = new Map();
@@ -287,7 +293,7 @@ for (const [codigo, r] of px) {
     }
   }
 
-  // Saldo, unidade, pedido, fabricantes e moeda (ficha do item).
+  // Saldo, unidade, pedido, fabricantes, moeda e preço (ficha do item).
   const ant = state.inf?.[codigo] || [0, 'UN', 0, 0, '', [], []];
   const nac = fab(r.fab_nacional);
   const imp = fab(r.fab_importado);
@@ -309,6 +315,10 @@ for (const [codigo, r] of px) {
     fabs.join(' / '),
     fabs,
     moedas,
+    // Preço = custo do Protheus na moeda dele (só com moeda conhecida e > 0).
+    MOEDA[String(r.moeda || '').toUpperCase()] && Number(r.custo) > 0
+      ? [Number(r.custo), MOEDA[String(r.moeda).toUpperCase()]]
+      : null,
   ];
   state.inf ||= {};
   if (JSON.stringify(state.inf[codigo]) !== JSON.stringify(inf)) {

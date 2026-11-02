@@ -4,8 +4,9 @@ export const MOEDAS: Record<Moeda, { simbolo: string; nome: string }> = {
   BRL: { simbolo: 'R$', nome: 'Real' },
   USD: { simbolo: 'US$', nome: 'Dólar' },
   CNY: { simbolo: '¥', nome: 'Yuan' },
+  EUR: { simbolo: '€', nome: 'Euro' },
 };
-export const ORDEM_MOEDAS: Moeda[] = ['BRL', 'USD', 'CNY'];
+export const ORDEM_MOEDAS: Moeda[] = ['BRL', 'USD', 'CNY', 'EUR'];
 
 const num = (min: number, max: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -114,6 +115,7 @@ export function cambio(cotacoes: Cotacao[]): Cambio {
     BRL: { valor: 1, data: null },
     USD: { valor: NaN, data: null },
     CNY: { valor: NaN, data: null },
+    EUR: { valor: NaN, data: null },
   };
   for (const q of cotacoes)
     if (!c[q.moeda].data || q.data > c[q.moeda].data!)

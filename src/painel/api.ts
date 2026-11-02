@@ -2,7 +2,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { cloudError, supabase } from '../cloud/client';
 import { comProtheus, type Produto } from './protheus';
 
-export type Moeda = 'BRL' | 'USD' | 'CNY';
+export type Moeda = 'BRL' | 'USD' | 'CNY' | 'EUR';
 export type Tipo = 'MP' | 'PI' | 'PA';
 export type Origem = 'nacional' | 'internacional';
 export type Material = {
@@ -59,7 +59,11 @@ export type Mudanca = {
   desfeito_em: string | null;
   desfeito_por: string | null;
 };
-export type Cotacao = { moeda: 'USD' | 'CNY'; data: string; valor: number };
+export type Cotacao = {
+  moeda: 'USD' | 'CNY' | 'EUR';
+  data: string;
+  valor: number;
+};
 export type Dados = {
   materiais: Material[];
   fornecedores: Fornecedor[];

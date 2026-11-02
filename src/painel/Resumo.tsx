@@ -184,12 +184,12 @@ export const Resumo = memo(function Resumo({
             <span className="p-s">Banco Central, venda</span>
           </div>
           <div className="cots">
-            {(['USD', 'CNY'] as const).map((m) => (
+            {(['USD', 'CNY', 'EUR'] as const).map((m) => (
               <Cotacao key={m} moeda={m} ctx={ctx} />
             ))}
           </div>
           <p className="nota">
-            Preços em Dólar e Yuan viram Real pela cotação mais recente.
+            Preços em Dólar, Yuan e Euro viram Real pela cotação mais recente.
           </p>
         </section>
 
@@ -490,7 +490,13 @@ function Divisao({
   );
 }
 
-function Cotacao({ moeda, ctx }: { moeda: 'USD' | 'CNY'; ctx: Contexto }) {
+function Cotacao({
+  moeda,
+  ctx,
+}: {
+  moeda: 'USD' | 'CNY' | 'EUR';
+  ctx: Contexto;
+}) {
   const pts = ctx.dados.cotacoes
     .filter((c) => c.moeda === moeda)
     .map((c) => ({ d: c.data, v: Number(c.valor) }));
