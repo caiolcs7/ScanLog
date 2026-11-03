@@ -17,6 +17,9 @@ $Tamanho = 100   # paginas de 500 ou mais o servidor devolve vazias
 # ninguem usa o Protheus, entao vai com mais.
 $Juntas = $(if ((Get-Date).Hour -lt 6) { 16 } else { 8 })
 $Lote = 500      # itens por envio ao Supabase
+# Para testar outro numero sem reinstalar: coloque so o numero em juntas.txt (pasta ScanLogSync).
+$JF = Join-Path $Dir 'juntas.txt'
+if (Test-Path $JF) { $x = 0; if ([int]::TryParse((Get-Content $JF -Raw).Trim(), [ref]$x) -and $x -ge 1 -and $x -le 64) { $Juntas = $x } }
 
 $LogFile = Join-Path $Dir 'sync.log'
 if ((Test-Path $LogFile) -and (Get-Item $LogFile).Length -gt 2MB) { Move-Item $LogFile "$LogFile.old" -Force }
