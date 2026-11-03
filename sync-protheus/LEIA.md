@@ -23,3 +23,10 @@ pulando só o item com defeito. Só apaga códigos que sumiram quando a leitura 
 completa e gravou pelo menos 80% do que já havia.
 
 Os `.ps1` são só ASCII de propósito: o PowerShell 5.1 lê arquivo sem BOM como ANSI.
+
+**Leitura rapida (terca a sexta):** a segunda-feira le tudo e anota em
+`%LOCALAPPDATA%\ScanLogSync\bloqueadas.json` as paginas que vieram 100% de
+bloqueados. De terca a sexta essas paginas nao sao baixadas (menos tempo no
+Protheus). A leitura rapida nunca apaga codigos (`completo=false` no Supabase);
+quem apaga e a completa de segunda. Para forcar leitura completa, apague o
+`bloqueadas.json`.
