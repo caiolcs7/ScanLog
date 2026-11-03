@@ -1,7 +1,7 @@
 # Sincronizador Protheus → Supabase
 
 O Protheus (`http://10.10.10.3:8600/rest/MACWS009/consultar/produto`) só existe
-na rede da empresa. Este script roda num PC de lá, seg a sex às 4h, e copia os
+na rede da empresa. Este script roda num PC de lá, seg a sex às 0h30, e copia os
 produtos **desbloqueados** para `public.protheus_produtos` (migração
 `supabase/migrations/0007_protheus.sql`). As páginas leem só do Supabase.
 
