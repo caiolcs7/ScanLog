@@ -20,6 +20,8 @@ $Lote = 500      # itens por envio ao Supabase
 # Para testar outro numero sem reinstalar: coloque so o numero em juntas.txt (pasta ScanLogSync).
 $JF = Join-Path $Dir 'juntas.txt'
 if (Test-Path $JF) { $x = 0; if ([int]::TryParse((Get-Content $JF -Raw).Trim(), [ref]$x) -and $x -ge 1 -and $x -le 64) { $Juntas = $x } }
+$TF = Join-Path $Dir 'tamanho.txt'   # itens por pagina, para testar (ex.: 250)
+if (Test-Path $TF) { $x = 0; if ([int]::TryParse((Get-Content $TF -Raw).Trim(), [ref]$x) -and $x -ge 10 -and $x -le 1000 -and $x % 10 -eq 0) { $Tamanho = $x } }
 
 $LogFile = Join-Path $Dir 'sync.log'
 if ((Test-Path $LogFile) -and (Get-Item $LogFile).Length -gt 2MB) { Move-Item $LogFile "$LogFile.old" -Force }
@@ -56,7 +58,7 @@ function Supabase([string]$funcao, $corpo) {
 # Paginas que vieram 100% bloqueadas ficam anotadas em bloqueadas.json. De terca
 # a sexta (leitura rapida) elas nao sao baixadas; na segunda le tudo de novo,
 # para pegar quem foi desbloqueado, e so a leitura completa apaga codigos.
-$MapaFile = Join-Path $Dir 'bloqueadas.json'
+$MapaFile = Join-Path $Dir "bloqueadas-$Tamanho.json"   # um por tamanho de pagina
 $Hoje = [int][Math]::Floor((Get-Date).ToOADate())
 $Rapida = (-not $Teste) -and ((Get-Date).DayOfWeek -ne 'Monday') -and (Test-Path $MapaFile)
 $mapa = @{}
@@ -149,7 +151,7 @@ function Guardar($j) {
 }
 
 $inicio = Get-Date
-Log ('=== inicio' + $(if ($Teste) { ' (teste)' } else { '' }) + $(if ($Rapida) { ' (rapida: pula paginas so com bloqueados)' } else { '' }) + ", $Juntas consultas por vez")
+Log ('=== inicio' + " (paginas de $Tamanho)" + $(if ($Teste) { ' (teste)' } else { '' }) + $(if ($Rapida) { ' (rapida: pula paginas so com bloqueados)' } else { '' }) + ", $Juntas consultas por vez")
 try {
   $execucao = Supabase 'protheus_iniciar' @{ p_token = $token }
 } catch {
@@ -205,11 +207,12 @@ try {
   if ($Teste) { $falhas = @() }
   if ($falhas.Count) {
     Log ("dividindo " + $falhas.Count + " paginas: " + (($falhas | ForEach-Object { $_.p }) -join ', '))
-    $subs = @(foreach ($f in $falhas) { foreach ($k in 1..10) { @{ p = ($f.p - 1) * 10 + $k; s = 10 } } })
+    $d = [int]($Tamanho / 10)
+    $subs = @(foreach ($f in $falhas) { foreach ($k in 1..$d) { @{ p = ($f.p - 1) * $d + $k; s = 10 } } })
     $rs = Baixar $subs
     $unid = @()
     foreach ($f in $falhas) {
-      $irmas = @($subs | Where-Object { [Math]::Ceiling($_.p / 10) -eq $f.p })
+      $irmas = @($subs | Where-Object { [Math]::Ceiling($_.p / $d) -eq $f.p })
       $ok = @($irmas | Where-Object { $rs.ContainsKey((Chave $_)) })
       foreach ($q in $ok) { Guardar $rs[(Chave $q)] }
       # Se nenhuma de 10 veio, a pagina inteira esta depois do fim da lista.
