@@ -96,11 +96,12 @@ export default defineConfig({
         // fora do cache do app e da página de reserva offline.
         globIgnores: [
           'painel/**',
+          'relatorio/**',
           'assets/painel*',
           'assets/big-shoulders*',
           'assets/barlow*',
         ],
-        navigateFallbackDenylist: [/\/painel(\/|$)/],
+        navigateFallbackDenylist: [/\/painel(\/|$)/, /\/relatorio(\/|$)/],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
