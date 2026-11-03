@@ -205,6 +205,18 @@ try {
   # paginas com defeito.
   if ($vazias -ge 2) { $falhas = @($falhas | Where-Object { $_.p -lt $iniVaz }) }
   if ($Teste) { $falhas = @() }
+  # Quase sempre a pagina falhou por lentidao (passou de 240 s), nao por item
+  # com defeito: antes de dividir, tenta de novo inteira, duas vezes.
+  for ($r = 1; $r -le 2 -and $falhas.Count; $r++) {
+    Log ("tentando de novo " + $falhas.Count + " paginas inteiras (vez $r)")
+    $rr = Baixar $falhas
+    $resta = New-Object System.Collections.ArrayList
+    foreach ($q in $falhas) {
+      if ($rr.ContainsKey((Chave $q))) { Guardar $rr[(Chave $q)] } else { [void]$resta.Add($q) }
+    }
+    $falhas = @($resta)
+    Enviar
+  }
   if ($falhas.Count) {
     Log ("dividindo " + $falhas.Count + " paginas: " + (($falhas | ForEach-Object { $_.p }) -join ', '))
     $d = [int]($Tamanho / 10)
