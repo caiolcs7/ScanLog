@@ -69,6 +69,18 @@ if (Test-Path $MapaFile) {
   } catch { $mapa = @{}; $Rapida = $false }
 }
 
+# Prefixo (2 letras) do primeiro codigo de cada pagina, anotado a cada leitura.
+# Serve para ler primeiro as paginas de IT e MP (as que o Relatorio usa).
+$PrefFile = Join-Path $Dir "prefixos-$Tamanho.json"
+$prefs = @{}
+if (Test-Path $PrefFile) {
+  try {
+    $o = Get-Content $PrefFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($pr in $o.PSObject.Properties) { $prefs[$pr.Name] = [string]$pr.Value }
+  } catch { $prefs = @{} }
+}
+$feitas = @{}
+
 function Chave($q) { "$($q.p)-$($q.s)" }
 
 function Ler([string]$f) {
@@ -110,6 +122,13 @@ function Baixar($pedidos) {
     }
   }
   return $res
+}
+
+function Anotar($q, $j) {
+  $liv = @($j.Produtos | Where-Object { ([string]$_.Produto).Trim() -and ([string]$_.Bloqueado) -notlike 'S*' }).Count
+  if ($liv -eq 0 -and $j.hasNext) { $mapa["$($q.p)"] = $Hoje } else { $mapa.Remove("$($q.p)") }
+  $c = ([string]$j.Produtos[0].Produto).Trim()
+  if ($c.Length -ge 2) { $prefs["$($q.p)"] = $c.Substring(0, 2) }
 }
 
 $itens = New-Object System.Collections.Generic.List[object]
@@ -170,13 +189,42 @@ try {
   $pulou = 0
   $fim = $null
   $falhas = New-Object System.Collections.ArrayList
+  # Primeiro as paginas de IT e MP (e a que vem antes de cada trecho, onde ele
+  # pode comecar), se ja sabemos quais sao.
+  if (-not $Teste -and $prefs.Count) {
+    $prio = @{}
+    foreach ($k in $prefs.Keys) {
+      if ($prefs[$k] -eq 'IT' -or $prefs[$k] -eq 'MP') {
+        $kk = [int]$k
+        $prio["$kk"] = $true
+        if ($kk -gt 1 -and $prefs["$($kk - 1)"] -ne 'IT' -and $prefs["$($kk - 1)"] -ne 'MP') { $prio["$($kk - 1)"] = $true }
+      }
+    }
+    $lista = @($prio.Keys | ForEach-Object { [int]$_ } | Sort-Object | Where-Object { -not ($Rapida -and $mapa.ContainsKey("$_")) })
+    Log ("prioridade IT/MP: " + $lista.Count + " paginas")
+    $tam = 2 * $Juntas
+    for ($i = 0; $i -lt $lista.Count; $i += $tam) {
+      $bl = @($lista[$i..([Math]::Min($i + $tam, $lista.Count) - 1)] | ForEach-Object { @{ p = $_; s = $Tamanho } })
+      $rs0 = Baixar $bl
+      foreach ($q in $bl) {
+        $j = $rs0[(Chave $q)]
+        if ($j) {
+          Guardar $j
+          Anotar $q $j
+          if ($j.hasNext) { $feitas["$($q.p)"] = $true }
+        } else { $feitas["$($q.p)"] = $true; [void]$falhas.Add($q) }
+      }
+      Log "prioridade: $($i + $bl.Count) de $($lista.Count) paginas, $($script:gravados) gravados, $($falhas.Count) para dividir"
+    }
+  }
   while ($true) {
     $n = 2 * $Juntas
     # Proximas $n paginas a baixar (na leitura rapida, sem as so de bloqueados).
     $bloco = @()
     $pp = $pagina
     while ($bloco.Count -lt $n -and $pp -lt $pagina + 5000) {
-      if ($Rapida -and $mapa.ContainsKey("$pp")) { $pulou++ } else { $bloco += @{ p = $pp; s = $Tamanho } }
+      if ($feitas.ContainsKey("$pp")) { }
+      elseif ($Rapida -and $mapa.ContainsKey("$pp")) { $pulou++ } else { $bloco += @{ p = $pp; s = $Tamanho } }
       $pp++
     }
     if ($bloco.Count -eq 0) { $pagina = $pp; continue }
@@ -185,8 +233,7 @@ try {
       $j = $res[(Chave $q)]
       if ($j) {
         Guardar $j
-        $livre = @($j.Produtos | Where-Object { ([string]$_.Produto).Trim() -and ([string]$_.Bloqueado) -notlike 'S*' }).Count
-        if ($livre -eq 0 -and $j.hasNext) { $mapa["$($q.p)"] = $Hoje } else { $mapa.Remove("$($q.p)") }
+        Anotar $q $j
         if (-not $j.hasNext -and ($null -eq $fim -or $q.p -lt $fim)) { $fim = $q.p }
       } else { $mapa.Remove("$($q.p)"); [void]$falhas.Add($q) }
     }
@@ -245,6 +292,9 @@ try {
   }
   $completo = $null -ne $fim
   Enviar
+  if (-not $Teste -and $prefs.Count) {
+    [IO.File]::WriteAllText($PrefFile, ($prefs | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
+  }
   if ($completo -and -not $Teste) {
     [IO.File]::WriteAllText($MapaFile, ($mapa | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
   }

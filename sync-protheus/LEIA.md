@@ -35,3 +35,7 @@ quem apaga e a completa de segunda. Para forcar leitura completa, apague o
 `%LOCALAPPDATA%\ScanLogSync`): `juntas.txt` = consultas ao mesmo tempo (1 a 64);
 `tamanho.txt` = itens por página (múltiplo de 10, até 1000). Apagar o arquivo
 volta ao padrão (16/8 consultas, páginas de 100).
+
+**Prioridade IT e MP:** a cada leitura o sincronizador anota o prefixo do primeiro
+codigo de cada pagina (`prefixos-100.json`). Nas leituras seguintes ele le
+primeiro as paginas de IT e MP (as que o Relatorio usa) e so depois o resto.
