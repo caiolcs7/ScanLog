@@ -1,6 +1,6 @@
 # ScanLog - instala o sincronizador do Protheus neste PC (rodar uma vez).
 # Guarda usuario/senha do Protheus e o token criptografados no usuario do
-# Windows (so este usuario, neste PC, consegue ler) e agenda seg a sex, 4h.
+# Windows (so este usuario, neste PC, consegue ler) e agenda seg a sex, 0h30.
 $ErrorActionPreference = 'Stop'
 $Dir = Join-Path $env:LOCALAPPDATA 'ScanLogSync'
 $Tarefa = 'ScanLog Sync Protheus'
@@ -26,13 +26,13 @@ $hash = -join ([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encodi
 
 $acao = New-ScheduledTaskAction -Execute 'powershell.exe' `
   -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $Dir 'sync.ps1') + '"')
-$quando = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At 4:00am
+$quando = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At 12:30am
 $config = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -ExecutionTimeLimit (New-TimeSpan -Hours 20) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $Tarefa -Action $acao -Trigger $quando -Settings $config `
   -Description 'Copia os produtos do Protheus para o ScanLog (Supabase).' -Force | Out-Null
 Write-Host ''
-Write-Host "Tarefa '$Tarefa' agendada: seg a sex, 4h. O PC precisa estar ligado e com este usuario logado (tela bloqueada serve)."
+Write-Host "Tarefa '$Tarefa' agendada: seg a sex, 0h30. O PC precisa estar ligado e com este usuario logado (tela bloqueada serve)."
 
 # SQL para o Supabase: a migracao (se o arquivo estiver junto) + o hash do token.
 $sql = "update protheus_priv.config set token_hash = '$hash';"

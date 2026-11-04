@@ -17,6 +17,11 @@ $Tamanho = 100   # paginas de 500 ou mais o servidor devolve vazias
 # ninguem usa o Protheus, entao vai com mais.
 $Juntas = $(if ((Get-Date).Hour -lt 6) { 16 } else { 8 })
 $Lote = 500      # itens por envio ao Supabase
+# Para testar outro numero sem reinstalar: coloque so o numero em juntas.txt (pasta ScanLogSync).
+$JF = Join-Path $Dir 'juntas.txt'
+if (Test-Path $JF) { $x = 0; if ([int]::TryParse((Get-Content $JF -Raw).Trim(), [ref]$x) -and $x -ge 1 -and $x -le 64) { $Juntas = $x } }
+$TF = Join-Path $Dir 'tamanho.txt'   # itens por pagina, para testar (ex.: 250)
+if (Test-Path $TF) { $x = 0; if ([int]::TryParse((Get-Content $TF -Raw).Trim(), [ref]$x) -and $x -ge 10 -and $x -le 1000 -and $x % 10 -eq 0) { $Tamanho = $x } }
 
 $LogFile = Join-Path $Dir 'sync.log'
 if ((Test-Path $LogFile) -and (Get-Item $LogFile).Length -gt 2MB) { Move-Item $LogFile "$LogFile.old" -Force }
@@ -48,6 +53,20 @@ function Supabase([string]$funcao, $corpo) {
       Start-Sleep -Seconds (30 * $t)
     }
   }
+}
+
+# Paginas que vieram 100% bloqueadas ficam anotadas em bloqueadas.json. De terca
+# a sexta (leitura rapida) elas nao sao baixadas; na segunda le tudo de novo,
+# para pegar quem foi desbloqueado, e so a leitura completa apaga codigos.
+$MapaFile = Join-Path $Dir "bloqueadas-$Tamanho.json"   # um por tamanho de pagina
+$Hoje = [int][Math]::Floor((Get-Date).ToOADate())
+$Rapida = (-not $Teste) -and ((Get-Date).DayOfWeek -ne 'Monday') -and (Test-Path $MapaFile)
+$mapa = @{}
+if (Test-Path $MapaFile) {
+  try {
+    $o = Get-Content $MapaFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($pr in $o.PSObject.Properties) { $mapa[$pr.Name] = $pr.Value }
+  } catch { $mapa = @{}; $Rapida = $false }
 }
 
 function Chave($q) { "$($q.p)-$($q.s)" }
@@ -132,7 +151,7 @@ function Guardar($j) {
 }
 
 $inicio = Get-Date
-Log ('=== inicio' + $(if ($Teste) { ' (teste)' } else { '' }) + ", $Juntas consultas por vez")
+Log ('=== inicio' + " (paginas de $Tamanho)" + $(if ($Teste) { ' (teste)' } else { '' }) + $(if ($Rapida) { ' (rapida: pula paginas so com bloqueados)' } else { '' }) + ", $Juntas consultas por vez")
 try {
   $execucao = Supabase 'protheus_iniciar' @{ p_token = $token }
 } catch {
@@ -147,40 +166,65 @@ try {
   # defeito.
   $pagina = 1
   $vazias = 0
+  $iniVaz = 0
+  $pulou = 0
   $fim = $null
   $falhas = New-Object System.Collections.ArrayList
   while ($true) {
     $n = 2 * $Juntas
-    $bloco = @($pagina..($pagina + $n - 1) | ForEach-Object { @{ p = $_; s = $Tamanho } })
+    # Proximas $n paginas a baixar (na leitura rapida, sem as so de bloqueados).
+    $bloco = @()
+    $pp = $pagina
+    while ($bloco.Count -lt $n -and $pp -lt $pagina + 5000) {
+      if ($Rapida -and $mapa.ContainsKey("$pp")) { $pulou++ } else { $bloco += @{ p = $pp; s = $Tamanho } }
+      $pp++
+    }
+    if ($bloco.Count -eq 0) { $pagina = $pp; continue }
     $res = Baixar $bloco
     foreach ($q in $bloco) {
       $j = $res[(Chave $q)]
       if ($j) {
         Guardar $j
+        $livre = @($j.Produtos | Where-Object { ([string]$_.Produto).Trim() -and ([string]$_.Bloqueado) -notlike 'S*' }).Count
+        if ($livre -eq 0 -and $j.hasNext) { $mapa["$($q.p)"] = $Hoje } else { $mapa.Remove("$($q.p)") }
         if (-not $j.hasNext -and ($null -eq $fim -or $q.p -lt $fim)) { $fim = $q.p }
-      } else { [void]$falhas.Add($q) }
+      } else { $mapa.Remove("$($q.p)"); [void]$falhas.Add($q) }
     }
-    Log "ate a pagina $($pagina + $n - 1): $($script:lidos) lidos, $($script:gravados) gravados, $($falhas.Count) paginas para dividir"
+    Log "ate a pagina $($pp - 1): $($script:lidos) lidos, $($script:gravados) gravados, $pulou paginas puladas, $($falhas.Count) paginas para dividir"
     if ($null -ne $fim -or $Teste) { break }
     if ($res.Count -eq 0) {
       # Nada veio: fim da lista ou Protheus fora do ar.
+      if ($vazias -eq 0) { $iniVaz = $bloco[0].p }
       $vazias++
       if ($vazias -ge 2) { break }
     } else { $vazias = 0 }
-    $pagina += $n
+    $pagina = $pp
   }
   $falhas = @($falhas | Where-Object { $null -eq $fim -or $_.p -lt $fim })
   # Os dois ultimos blocos vazios (fim da lista ou Protheus fora) nao sao
   # paginas com defeito.
-  if ($vazias -ge 2) { $falhas = @($falhas | Where-Object { $_.p -lt $pagina - $n }) }
+  if ($vazias -ge 2) { $falhas = @($falhas | Where-Object { $_.p -lt $iniVaz }) }
   if ($Teste) { $falhas = @() }
+  # Quase sempre a pagina falhou por lentidao (passou de 240 s), nao por item
+  # com defeito: antes de dividir, tenta de novo inteira, duas vezes.
+  for ($r = 1; $r -le 2 -and $falhas.Count; $r++) {
+    Log ("tentando de novo " + $falhas.Count + " paginas inteiras (vez $r)")
+    $rr = Baixar $falhas
+    $resta = New-Object System.Collections.ArrayList
+    foreach ($q in $falhas) {
+      if ($rr.ContainsKey((Chave $q))) { Guardar $rr[(Chave $q)] } else { [void]$resta.Add($q) }
+    }
+    $falhas = @($resta)
+    Enviar
+  }
   if ($falhas.Count) {
     Log ("dividindo " + $falhas.Count + " paginas: " + (($falhas | ForEach-Object { $_.p }) -join ', '))
-    $subs = @(foreach ($f in $falhas) { foreach ($k in 1..10) { @{ p = ($f.p - 1) * 10 + $k; s = 10 } } })
+    $d = [int]($Tamanho / 10)
+    $subs = @(foreach ($f in $falhas) { foreach ($k in 1..$d) { @{ p = ($f.p - 1) * $d + $k; s = 10 } } })
     $rs = Baixar $subs
     $unid = @()
     foreach ($f in $falhas) {
-      $irmas = @($subs | Where-Object { [Math]::Ceiling($_.p / 10) -eq $f.p })
+      $irmas = @($subs | Where-Object { [Math]::Ceiling($_.p / $d) -eq $f.p })
       $ok = @($irmas | Where-Object { $rs.ContainsKey((Chave $_)) })
       foreach ($q in $ok) { Guardar $rs[(Chave $q)] }
       # Se nenhuma de 10 veio, a pagina inteira esta depois do fim da lista.
@@ -201,6 +245,9 @@ try {
   }
   $completo = $null -ne $fim
   Enviar
+  if ($completo -and -not $Teste) {
+    [IO.File]::WriteAllText($MapaFile, ($mapa | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
+  }
 } catch {
   Log "ERRO: $($_.Exception.Message)"
   $completo = $false
@@ -209,7 +256,9 @@ Remove-Item $CabFile -ErrorAction SilentlyContinue
 
 try {
   $removidos = Supabase 'protheus_finalizar' @{
-    p_token = $token; p_execucao = $execucao; p_completo = ($completo -and -not $Teste)
+    # Leitura rapida nunca apaga codigos (um codigo que mudou de pagina poderia
+    # cair numa pagina pulada); quem apaga e a leitura completa de segunda.
+    p_token = $token; p_execucao = $execucao; p_completo = ($completo -and -not $Teste -and -not $Rapida)
     p_lidos = $script:lidos; p_pulados = $script:pulados
   }
 } catch {
@@ -217,5 +266,5 @@ try {
   exit 1
 }
 $min = [int]((Get-Date) - $inicio).TotalMinutes
-Log "=== fim em $min min: $($script:lidos) lidos, $($script:gravados) gravados, $($script:pulados) pulados, $removidos removidos, completo=$completo"
+Log ("=== fim em $min min: $($script:lidos) lidos, $($script:gravados) gravados, $($script:pulados) pulados, $removidos removidos, completo=$completo" + $(if ($Rapida) { ' (rapida)' } else { '' }))
 if (-not $completo -and -not $Teste) { exit 2 }

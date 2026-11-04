@@ -1,7 +1,7 @@
 # Sincronizador Protheus → Supabase
 
 O Protheus (`http://10.10.10.3:8600/rest/MACWS009/consultar/produto`) só existe
-na rede da empresa. Este script roda num PC de lá, seg a sex às 4h, e copia os
+na rede da empresa. Este script roda num PC de lá, seg a sex às 0h30, e copia os
 produtos **desbloqueados** para `public.protheus_produtos` (migração
 `supabase/migrations/0007_protheus.sql`). As páginas leem só do Supabase.
 
@@ -23,3 +23,15 @@ pulando só o item com defeito. Só apaga códigos que sumiram quando a leitura 
 completa e gravou pelo menos 80% do que já havia.
 
 Os `.ps1` são só ASCII de propósito: o PowerShell 5.1 lê arquivo sem BOM como ANSI.
+
+**Leitura rapida (terca a sexta):** a segunda-feira le tudo e anota em
+`%LOCALAPPDATA%\ScanLogSync\bloqueadas-100.json` (um arquivo por tamanho de pagina) as paginas que vieram 100% de
+bloqueados. De terca a sexta essas paginas nao sao baixadas (menos tempo no
+Protheus). A leitura rapida nunca apaga codigos (`completo=false` no Supabase);
+quem apaga e a completa de segunda. Para forcar leitura completa, apague o
+`bloqueadas.json`.
+
+**Ajustes sem reinstalar** (arquivos de texto só com o número, em
+`%LOCALAPPDATA%\ScanLogSync`): `juntas.txt` = consultas ao mesmo tempo (1 a 64);
+`tamanho.txt` = itens por página (múltiplo de 10, até 1000). Apagar o arquivo
+volta ao padrão (16/8 consultas, páginas de 100).
