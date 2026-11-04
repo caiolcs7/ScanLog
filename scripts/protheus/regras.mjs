@@ -53,12 +53,20 @@ export function posicoes(d) {
     faixa = false;
     ultimo = out[out.length - 1];
   }
+  // caio (30/10 e 03/11): o A1 dessas ruas acaba antes; acima do limite e A2.
+  for (const p of out) {
+    const lim = LIMITE_A1[`${p.rua}${p.letra}`];
+    if (p.andar === 'A1' && lim && p.n > lim) p.andar = 'A2';
+  }
   const vistos = new Set();
   return out.filter((p) => {
     const k = chave(p);
     return vistos.has(k) ? false : vistos.add(k);
   });
 }
+
+// Ultimo galao/caixa que existe no 1o andar (rua+letra).
+export const LIMITE_A1 = { '4G': 81, '4C': 77, '5G': 66 };
 
 function lastEstoque(d) {
   const i = d.toUpperCase().lastIndexOf('ESTOQUE');
