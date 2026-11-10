@@ -25,7 +25,9 @@ function readName() {
 }
 export function sectorOf(session: Session | null): Sector | null {
   const role = session?.user.app_metadata?.role;
-  return role === 'almoxarifado' || role === 'estrutura' ? role : null;
+  return role === 'almoxarifado' || role === 'estrutura' || role === 'admin'
+    ? role
+    : null;
 }
 function apply(session: Session | null) {
   const sector = sectorOf(session);
@@ -83,6 +85,8 @@ export async function signIn(sector: Sector, password: string, name: string) {
   apply(data.session);
 }
 export async function signOut() {
+  // Aparelho que sai do setor para de receber os avisos dele.
+  await import('./push').then((m) => m.forgetPush()).catch(() => {});
   await (await supabase()).auth.signOut();
   set({ status: 'out' });
 }

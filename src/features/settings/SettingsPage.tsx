@@ -24,6 +24,7 @@ import {
   type Backup,
 } from '../../services/backup';
 import { Modal, errorMessage, useNotice, useTask } from '../../components/ui';
+import { PushBanner } from '../identify/shared';
 
 export function SettingsPage({ settings }: { settings: Settings }) {
   const [form, setForm] = useState(() => structuredClone(settings)),
@@ -438,6 +439,7 @@ function IdentifyAccount() {
           Conectado como <strong>{sectors[auth.sector].label}</strong> ·{' '}
           {auth.name}
         </p>
+        <PushBanner sector={auth.sector} userId={auth.userId} compact />
         <button onClick={() => void task(signOut)}>
           <LogOut />
           Sair da Identificação

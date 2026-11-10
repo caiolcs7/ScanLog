@@ -45,8 +45,9 @@ export function PhotoCapture({
           audio: false,
           video: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            // Resolução máxima da câmera traseira: foto nítida para a estrutura.
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
           },
         });
         if (cancelled) {

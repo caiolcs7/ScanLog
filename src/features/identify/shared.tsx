@@ -1,4 +1,15 @@
-import { AlertTriangle, CloudUpload, RefreshCw, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import {
+  AlertTriangle,
+  Bell,
+  BellOff,
+  BellRing,
+  CloudUpload,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react';
+import type { Sector } from '../../cloud/config';
+import { usePush } from '../../cloud/push';
 import { downloadBlob } from '../../services/download';
 import {
   discardEntry,
@@ -62,6 +73,72 @@ export function OutboxBanner({ entries }: { entries: OutboxEntry[] }) {
         >
           <Trash2 />
           Descartar
+        </button>
+      )}
+    </div>
+  );
+}
+
+const pushAbout: Record<Sector, string> = {
+  almoxarifado: 'Receba um aviso quando a estrutura preencher um código.',
+  estrutura: 'Receba um aviso quando chegar um levantamento novo.',
+  admin:
+    'Receba os avisos dos dois setores: levantamento novo e código preenchido.',
+};
+/** Convite para ligar as notificações deste aparelho. */
+export function PushBanner({
+  sector,
+  userId,
+  compact = false,
+}: {
+  sector: Sector;
+  userId: string;
+  /** Na tela de configurações: mostra também o estado ligado, com Desligar. */
+  compact?: boolean;
+}) {
+  const push = usePush(userId);
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  if (push.state === 'loading' || push.state === 'unsupported') return null;
+  if (push.state === 'on' && !compact) return null;
+  const act = async (work: () => Promise<void>) => {
+    setBusy(true);
+    setError('');
+    try {
+      await work();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha ao ativar.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="push-banner" role="status">
+      {push.state === 'on' ? <BellRing /> : <Bell />}
+      <span>
+        {push.state === 'on'
+          ? 'Notificações ligadas neste aparelho.'
+          : push.state === 'ios-install'
+            ? 'No iPhone, adicione o ScanLog à Tela de Início (Compartilhar → Adicionar à Tela de Início) para receber avisos.'
+            : push.state === 'denied'
+              ? 'Notificações bloqueadas. Libere nas configurações do navegador para o ScanLog.'
+              : pushAbout[sector]}
+        {error && <small>{error}</small>}
+      </span>
+      {push.state === 'off' && (
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() => void act(push.enable)}
+        >
+          <Bell />
+          {busy ? 'Ativando…' : 'Ativar notificações'}
+        </button>
+      )}
+      {push.state === 'on' && (
+        <button disabled={busy} onClick={() => void act(push.disable)}>
+          <BellOff />
+          Desligar
         </button>
       )}
     </div>

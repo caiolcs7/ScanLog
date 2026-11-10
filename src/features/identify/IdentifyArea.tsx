@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { CloudOff } from 'lucide-react';
 import { Loading } from '../../components/ui';
 import type { Settings } from '../../core/models';
-import { cloudConfigured } from '../../cloud/config';
+import { canStock, cloudConfigured } from '../../cloud/config';
 import { useCloudAuth } from '../../cloud/auth';
 import { watchOutbox } from '../../cloud/outbox';
 import { SectorLogin } from './SectorLogin';
@@ -18,7 +18,7 @@ export function IdentifyArea({
   settings: Settings;
 }) {
   const auth = useCloudAuth();
-  const almox = auth.status === 'in' && auth.sector === 'almoxarifado';
+  const almox = auth.status === 'in' && canStock(auth.sector);
   useEffect(() => {
     if (almox) watchOutbox();
   }, [almox]);

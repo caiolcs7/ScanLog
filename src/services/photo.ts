@@ -1,6 +1,11 @@
 import type { FindPhoto } from '../core/models';
 
-const MAX_SIDE = 1600;
+/**
+ * Original guardado até a conclusão do item: grande e nítido para a estrutura
+ * ler etiqueta, gravação e detalhes. Só vira miniatura depois de concluído.
+ */
+const MAX_SIDE = 2560;
+const QUALITY = 0.9;
 /** Lado maior da miniatura guardada depois da confirmação. */
 export const THUMB_SIDE = 320;
 export const THUMB_MAX_BYTES = 20 * 1024;
@@ -24,7 +29,7 @@ function release(canvas: HTMLCanvasElement) {
   canvas.height = 0;
 }
 
-/** Reduz a foto da câmera (até 12 MP) para JPEG leve, preservando a orientação. */
+/** Ajusta a foto da câmera (até 12 MP) para JPEG nítido, preservando a orientação. */
 export async function compressPhoto(file: Blob): Promise<FindPhoto> {
   const bitmap = await createImageBitmap(file, {
     imageOrientation: 'from-image',
@@ -34,7 +39,7 @@ export async function compressPhoto(file: Blob): Promise<FindPhoto> {
     const width = Math.round(bitmap.width * scale),
       height = Math.round(bitmap.height * scale);
     const canvas = draw(bitmap, width, height);
-    const blob = await encode(canvas, 'image/jpeg', 0.82);
+    const blob = await encode(canvas, 'image/jpeg', QUALITY);
     release(canvas);
     if (!blob) throw new Error('Não foi possível processar a foto.');
     return { blob, width, height };
@@ -81,7 +86,7 @@ export async function captureFrame(video: HTMLVideoElement) {
     height = video.videoHeight;
   if (!width || !height) throw new Error('A câmera ainda não está pronta.');
   const canvas = draw(video, width, height);
-  const blob = await encode(canvas, 'image/jpeg', 0.92);
+  const blob = await encode(canvas, 'image/jpeg', 0.95);
   release(canvas);
   if (!blob) throw new Error('Não foi possível tirar a foto.');
   return blob;

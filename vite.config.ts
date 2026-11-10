@@ -106,6 +106,8 @@ export default defineConfig({
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
+        // Avisos de levantamento novo e código preenchido (Web Push).
+        importScripts: ['push-sw.js'],
         // OCR engine and Portuguese model, fetched only when description
         // reading is enabled, stay available offline after the first use.
         runtimeCaching: [

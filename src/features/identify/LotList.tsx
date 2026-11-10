@@ -26,14 +26,16 @@ import type { CloudAuth } from '../../cloud/auth';
 import { useCloud, usePending } from '../../cloud/hooks';
 import { queueLot } from '../../cloud/outbox';
 import { lotStatusLabel, type CloudLot } from '../../cloud/types';
+import { canStock } from '../../cloud/config';
 import { fullDate, pendingLot } from './items';
-import { OutboxBanner, saveOrShare } from './shared';
+import { OutboxBanner, PushBanner, saveOrShare } from './shared';
 
 type Signed = Extract<CloudAuth, { status: 'in' }>;
 type Filter = 'open' | 'done';
 
 export function LotList({ auth }: { auth: Signed }) {
-  const almox = auth.sector === 'almoxarifado';
+  const almox = canStock(auth.sector),
+    admin = auth.sector === 'admin';
   const { data, error, loading, reload } = useCloud(listLots, []);
   const pending = usePending();
   const local = useLiveQuery(() => db.lots.count(), [], 0);
@@ -57,7 +59,7 @@ export function LotList({ auth }: { auth: Signed }) {
     .filter((l) => l.name.toLocaleLowerCase('pt-BR').includes(term))
     // A estrutura trabalha do mais antigo para o mais novo.
     .sort((a, b) =>
-      !almox && filter === 'open'
+      !almox && !admin && filter === 'open'
         ? (a.sent_at ?? a.created_at).localeCompare(b.sent_at ?? b.created_at)
         : 0,
     );
@@ -67,9 +69,11 @@ export function LotList({ auth }: { auth: Signed }) {
         <div>
           <h1>Identificação</h1>
           <p>
-            {almox
-              ? 'Fotografe o produto sem código, envie para a estrutura e confira o retorno.'
-              : 'Preencha o código de cada item enviado pelo almoxarifado.'}
+            {admin
+              ? 'Administrador: cadastra, preenche códigos, confere, edita e exclui.'
+              : almox
+                ? 'Fotografe o produto sem código, envie para a estrutura e confira o retorno.'
+                : 'Preencha o código de cada item enviado pelo almoxarifado.'}
           </p>
         </div>
         <div className="heading-actions">
@@ -94,6 +98,7 @@ export function LotList({ auth }: { auth: Signed }) {
           )}
         </div>
       </div>
+      <PushBanner sector={auth.sector} userId={auth.userId} />
       {almox && local > 0 && <LocalLots count={local} />}
       <OutboxBanner entries={pending} />
       {error && (

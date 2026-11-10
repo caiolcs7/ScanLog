@@ -131,7 +131,8 @@ async function run() {
   if (!navigator.onLine) return;
   const client = await supabase();
   const { data } = await client.auth.getSession();
-  if (data.session?.user.app_metadata?.role !== 'almoxarifado') return;
+  const role = data.session?.user.app_metadata?.role;
+  if (role !== 'almoxarifado' && role !== 'admin') return;
   for (;;) {
     const entry = await db.outbox.orderBy('createdAt').first();
     if (!entry) return;

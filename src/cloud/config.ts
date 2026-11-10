@@ -12,7 +12,8 @@ export const SUPABASE_KEY: string =
 export const cloudConfigured = !!SUPABASE_URL && !!SUPABASE_KEY;
 export const BUCKET = 'identificacao';
 
-export type Sector = 'almoxarifado' | 'estrutura';
+/** admin: conta do responsável, com os dois setores e permissão total. */
+export type Sector = 'almoxarifado' | 'estrutura' | 'admin';
 export const sectors: Record<Sector, { label: string; email: string }> = {
   almoxarifado: {
     label: 'Almoxarifado',
@@ -23,6 +24,14 @@ export const sectors: Record<Sector, { label: string; email: string }> = {
     label: 'Estrutura',
     email: import.meta.env.VITE_EMAIL_ESTRUTURA ?? 'estrutura@scanlog.app',
   },
+  admin: {
+    label: 'Administrador',
+    email: import.meta.env.VITE_EMAIL_ADMIN ?? 'admin@scanlog.app',
+  },
 };
+/** Cadastra, envia, confere e exclui (almoxarifado ou administrador). */
+export const canStock = (s: Sector) => s === 'almoxarifado' || s === 'admin';
+/** Preenche o código (estrutura ou administrador). */
+export const canCode = (s: Sector) => s === 'estrutura' || s === 'admin';
 /** Dias que a miniatura fica guardada depois da confirmação. */
 export const THUMB_DAYS = 150;

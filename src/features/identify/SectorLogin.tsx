@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Boxes, Lock, Network } from 'lucide-react';
+import { ArrowRight, Boxes, Lock, Network, ShieldCheck } from 'lucide-react';
 import { errorMessage } from '../../components/ui';
 import { sectors, type Sector } from '../../cloud/config';
 import { signIn } from '../../cloud/auth';
@@ -7,6 +7,12 @@ import { signIn } from '../../cloud/auth';
 const about: Record<Sector, string> = {
   almoxarifado: 'Fotografa os produtos sem código e confere o retorno.',
   estrutura: 'Preenche o código de cada item enviado.',
+  admin: 'Os dois setores juntos: edita e exclui tudo.',
+};
+const icons: Record<Sector, typeof Boxes> = {
+  almoxarifado: Boxes,
+  estrutura: Network,
+  admin: ShieldCheck,
 };
 /** Entrada por setor: senha guardada só no Supabase, nunca no app. */
 export function SectorLogin() {
@@ -48,23 +54,26 @@ export function SectorLogin() {
         }}
       >
         <div className="sector-choice" role="radiogroup" aria-label="Setor">
-          {(Object.keys(sectors) as Sector[]).map((key) => (
-            <button
-              key={key}
-              type="button"
-              role="radio"
-              aria-checked={sector === key}
-              className={sector === key ? 'selected' : ''}
-              onClick={() => {
-                setSector(key);
-                setError('');
-              }}
-            >
-              {key === 'almoxarifado' ? <Boxes /> : <Network />}
-              <strong>{sectors[key].label}</strong>
-              <small>{about[key]}</small>
-            </button>
-          ))}
+          {(Object.keys(sectors) as Sector[]).map((key) => {
+            const Icon = icons[key];
+            return (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={sector === key}
+                className={`${sector === key ? 'selected' : ''} ${key === 'admin' ? 'sector-admin' : ''}`}
+                onClick={() => {
+                  setSector(key);
+                  setError('');
+                }}
+              >
+                <Icon />
+                <strong>{sectors[key].label}</strong>
+                <small>{about[key]}</small>
+              </button>
+            );
+          })}
         </div>
         {sector && (
           <div className="sector-fields">
@@ -80,7 +89,9 @@ export function SectorLogin() {
               />
             </label>
             <label>
-              Senha do {sectors[sector].label.toLowerCase()}
+              {sector === 'admin'
+                ? 'Senha do administrador'
+                : `Senha do ${sectors[sector].label.toLowerCase()}`}
               <span className="field-icon">
                 <Lock aria-hidden="true" />
                 <input
