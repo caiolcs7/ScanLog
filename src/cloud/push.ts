@@ -26,6 +26,11 @@ function supported() {
     'Notification' in window
   );
 }
+/** Inscrição atual sem esperar o service worker (sair nunca trava). */
+async function currentSub() {
+  const reg = await navigator.serviceWorker.getRegistration();
+  return (await reg?.pushManager.getSubscription()) ?? null;
+}
 async function registration() {
   return navigator.serviceWorker.ready;
 }
@@ -33,7 +38,7 @@ export async function pushState(): Promise<PushState> {
   if (!supported())
     return isIos() && !standalone() ? 'ios-install' : 'unsupported';
   if (Notification.permission === 'denied') return 'denied';
-  const sub = await (await registration()).pushManager.getSubscription();
+  const sub = await currentSub();
   return sub && Notification.permission === 'granted' ? 'on' : 'off';
 }
 
@@ -111,7 +116,7 @@ export async function enablePush() {
 /** Desliga neste aparelho. */
 export async function disablePush() {
   if (!supported()) return;
-  const sub = await (await registration()).pushManager.getSubscription();
+  const sub = await currentSub();
   if (!sub) return;
   const client = await supabase();
   await client.rpc('push_cancelar', { p_endpoint: sub.endpoint });
@@ -123,7 +128,7 @@ export async function disablePush() {
  */
 export async function refreshPush() {
   if (!supported() || Notification.permission !== 'granted') return;
-  const sub = await (await registration()).pushManager.getSubscription();
+  const sub = await currentSub();
   if (sub) await save(sub).catch(() => {});
 }
 /** Sai da conta: este aparelho para de receber avisos do setor. */
