@@ -16,6 +16,7 @@ import { parseScan } from '../../core/parser';
 import { formatKg } from '../../core/weight';
 import { setCode, setNoCode } from '../../cloud/api';
 import { usePhotoUrls } from '../../cloud/hooks';
+import { PhotoViewer } from './PhotoViewer';
 import { itemStatusLabel } from '../../cloud/types';
 import { ScannerPanel } from '../scanner/ScannerPanel';
 import { fullDate, type ItemView } from './items';
@@ -58,7 +59,7 @@ export function CodeEntry({
     [done, setDone] = useState<Record<string, ItemView['status']>>({}),
     [noCode, setNoCodeOpen] = useState(false),
     [reason, setReason] = useState(''),
-    [zoom, setZoom] = useState<string | null>(null),
+    [zoom, setZoom] = useState<number | null>(null),
     [reading, setReading] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -155,7 +156,7 @@ export function CodeEntry({
                 key={path}
                 type="button"
                 aria-label={`Ampliar foto ${i + 1}`}
-                onClick={() => setZoom(urls[path])}
+                onClick={() => setZoom(i)}
               >
                 <img src={urls[path]} alt={`Foto ${i + 1}`} decoding="async" />
               </button>
@@ -312,15 +313,12 @@ export function CodeEntry({
           )}
         </div>
       </div>
-      {zoom && (
-        <button
-          type="button"
-          className="photo-zoom"
-          aria-label="Fechar foto"
-          onClick={() => setZoom(null)}
-        >
-          <img src={zoom} alt="Foto ampliada" />
-        </button>
+      {zoom !== null && (
+        <PhotoViewer
+          srcs={paths.map((p) => urls[p] ?? '')}
+          start={zoom}
+          onClose={() => setZoom(null)}
+        />
       )}
       {reading && (
         <Modal wide title="Ler código" onClose={() => setReading(false)}>

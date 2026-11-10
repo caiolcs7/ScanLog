@@ -63,6 +63,7 @@ import { fullDate, mergeItems, pendingLot, type ItemView } from './items';
 import { OutboxBanner, saveOrShare } from './shared';
 import { FindDialog } from './FindDialog';
 import { CodeEntry } from './CodeEntry';
+import { CloudPhotoViewer, PhotoViewer } from './PhotoViewer';
 
 type Signed = Extract<CloudAuth, { status: 'in' }>;
 /**
@@ -451,6 +452,12 @@ function FindCard({
   );
   const [local] = useBlobUrls(blobs);
   const src = local || thumb;
+  const [viewing, setViewing] = useState(false);
+  const paths = item.photos.length
+    ? item.photos.map((p) => p.path)
+    : item.thumb_path
+      ? [item.thumb_path]
+      : [];
   const confirmed = item.status === 'confirmado';
   const coded = item.status === 'codificado' || item.status === 'sem_codigo';
   const menu: MenuItem[] = almox
@@ -502,11 +509,9 @@ function FindCard({
     >
       <button
         className="find-photos-preview n1"
-        aria-label={
-          almox ? `Editar item ${label}` : `Preencher código do item ${label}`
-        }
-        disabled={confirmed && !admin}
-        onClick={almox ? onEdit : onCode}
+        aria-label={`Ver fotos do item ${label}`}
+        disabled={!src}
+        onClick={() => setViewing(true)}
       >
         {src ? (
           <img src={src} alt="" loading="lazy" decoding="async" />
@@ -612,6 +617,12 @@ function FindCard({
           </button>
         )}
       </div>
+      {viewing &&
+        (item.pending ? (
+          <PhotoViewer srcs={[local]} onClose={() => setViewing(false)} />
+        ) : (
+          <CloudPhotoViewer paths={paths} onClose={() => setViewing(false)} />
+        ))}
     </li>
   );
 }
