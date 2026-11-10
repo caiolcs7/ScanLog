@@ -22,6 +22,7 @@ import {
   type DraftPhoto,
 } from '../../cloud/outbox';
 import { useBlobUrls, usePhotoUrls } from '../../cloud/hooks';
+import { PhotoViewer } from './PhotoViewer';
 import type { ItemView } from './items';
 import { ScannerPanel } from '../scanner/ScannerPanel';
 import { PhotoCapture } from './PhotoCapture';
@@ -45,6 +46,7 @@ export function FindDialog({
 }) {
   const base = item ?? previous;
   const [photos, setPhotos] = useState<DraftPhoto[]>(item?.draftPhotos ?? []),
+    [viewing, setViewing] = useState<number | null>(null),
     [withAddress, setWithAddress] = useState(!!base?.address),
     [address, setAddress] = useState(base?.address ?? ''),
     [bombona, setBombona] = useState(base?.bombona ?? ''),
@@ -163,7 +165,11 @@ export function FindDialog({
             {photos.map((photo, i) => (
               <figure className="photo-slot filled" key={photo.path}>
                 {urls[i] ? (
-                  <img src={urls[i]} alt={`Foto ${i + 1}`} />
+                  <img
+                    src={urls[i]}
+                    alt={`Foto ${i + 1}`}
+                    onClick={() => setViewing(i)}
+                  />
                 ) : (
                   <span className="photo-slot__wait" />
                 )}
@@ -390,6 +396,13 @@ export function FindDialog({
             }}
           />
         </Modal>
+      )}
+      {viewing !== null && (
+        <PhotoViewer
+          srcs={urls}
+          start={viewing}
+          onClose={() => setViewing(null)}
+        />
       )}
     </Modal>
   );

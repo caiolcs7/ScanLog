@@ -129,7 +129,14 @@ test('identificação na nuvem: almoxarifado cadastra, estrutura codifica, almox
       expect(file.length).toBeLessThanOrEqual(20 * 1024);
 
   // Edição sobe para a nuvem e apaga a foto removida.
-  await page.getByRole('button', { name: 'Editar item 02' }).click();
+  // Toque na foto abre a foto grande; editar fica no menu do item.
+  await page.getByRole('button', { name: 'Ver fotos do item 02' }).click();
+  await expect(
+    page.getByRole('dialog', { name: 'Foto ampliada' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar foto' }).click();
+  await page.getByRole('button', { name: 'Opções do item 02' }).click();
+  await page.getByRole('menuitem', { name: 'Editar' }).click();
   const edit = page.getByRole('dialog', { name: 'Editar item 02' });
   await edit.getByRole('button', { name: 'Remover foto 4' }).click();
   await edit.getByPlaceholder('Ex.: conector azul, 3 vias').fill('tampa azul');

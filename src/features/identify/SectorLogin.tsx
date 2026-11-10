@@ -54,7 +54,7 @@ export function SectorLogin() {
         }}
       >
         <div className="sector-choice" role="radiogroup" aria-label="Setor">
-          {(Object.keys(sectors) as Sector[]).map((key) => {
+          {(['almoxarifado', 'estrutura'] as Sector[]).map((key) => {
             const Icon = icons[key];
             return (
               <button

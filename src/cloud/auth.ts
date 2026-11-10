@@ -68,12 +68,21 @@ export async function signIn(sector: Sector, password: string, name: string) {
   if (clean.length < 2 || clean.length > 60)
     throw new Error('Informe seu nome.');
   const client = await supabase();
-  const { data, error } = await client.auth.signInWithPassword({
+  let { data, error } = await client.auth.signInWithPassword({
     email: sectors[sector].email,
     password,
   });
+  // Senha do administrador digitada em qualquer setor: entra como admin.
+  if (error && /Invalid login credentials/i.test(error.message)) {
+    const admin = await client.auth.signInWithPassword({
+      email: sectors.admin.email,
+      password,
+    });
+    if (!admin.error) ({ data, error } = admin);
+  }
   if (error) throw cloudError(error);
-  if (sectorOf(data.session) !== sector) {
+  const got = sectorOf(data.session);
+  if (got !== sector && got !== 'admin') {
     await client.auth.signOut();
     throw new Error('Esta conta não tem o setor configurado no Supabase.');
   }
