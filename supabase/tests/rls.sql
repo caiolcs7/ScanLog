@@ -69,6 +69,31 @@ do $$ declare r public.items; begin
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
 end $$;
 
+-- Administrador: os dois setores, edita e exclui até item confirmado.
+select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"role":"admin"}}', true);
+do $$ declare r public.items; begin
+  select * into r from public.items where id = (select item from ids);
+  update public.items set code = 'Z9', coded_by = 'Caio' where id = r.id;
+  select * into r from public.items where id = r.id;
+  if r.code <> 'Z9' or r.status <> 'confirmado' or r.coded_by <> 'Caio' then raise exception 'FALHOU: admin não editou código do confirmado'; end if;
+  update public.items set address = 'NOVO' where id = r.id;
+  if (select address from public.items where id = r.id) <> 'NOVO' then raise exception 'FALHOU: admin não editou endereço'; end if;
+  update public.items set status = 'pendente', code_note = 'rever' where id = r.id;
+  select * into r from public.items where id = r.id;
+  if r.code is not null or r.confirmed_at is not null or r.thumb_expires_at is not null then raise exception 'FALHOU: admin reabriu errado'; end if;
+  if (select status from public.lots where id = r.lot_id) <> 'enviado' then raise exception 'FALHOU: lote não voltou'; end if;
+  update public.items set status = 'codificado', code = 'A1' where id = r.id;
+  update public.items set status = 'confirmado' where id = r.id;
+  if (select confirmed_by from public.items where id = r.id) <> 'Administrador' then raise exception 'FALHOU: admin confirmou'; end if;
+  insert into public.lots (name, created_by) values ('Admin', 'Caio');
+  if not exists (select 1 from public.lots where name = 'Admin' and status = 'rascunho') then raise exception 'FALHOU: admin não vê rascunho'; end if;
+  delete from public.items where id = r.id;
+  if not found then raise exception 'FALHOU: admin não apagou confirmado'; end if;
+  delete from public.lots where id = r.lot_id;
+  if not found then raise exception 'FALHOU: admin não apagou lote'; end if;
+  perform public.push_inscrever('https://push.example/1', 'k', 'a', 'Caio');
+end $$;
+
 -- Sem setor, nada.
 select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{}}', true);
 do $$ begin
@@ -76,6 +101,14 @@ do $$ begin
   begin
     insert into public.lots (name, created_by) values ('x', 'x');
     raise exception 'FALHOU: sem setor criou lote';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin
+    perform public.push_inscrever('https://push.example/2', 'k', 'a', 'x');
+    raise exception 'FALHOU: sem setor se inscreveu';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin
+    perform 1 from public.push_inscricoes;
+    raise exception 'FALHOU: leu inscrições';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
 end $$;
 reset role;

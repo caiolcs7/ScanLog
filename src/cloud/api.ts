@@ -87,14 +87,17 @@ async function removeFiles(paths: string[]) {
   await client.storage.from(BUCKET).remove(paths);
 }
 
-/** Estrutura: grava o código do item. */
+/**
+ * Estrutura: grava o código do item. Item já concluído (só o administrador
+ * altera) continua concluído.
+ */
 export async function setCode(item: CloudItem, code: string) {
   const client = await supabase();
   return must<CloudItem>(
     client
       .from('items')
       .update({
-        status: 'codificado',
+        status: item.status === 'confirmado' ? 'confirmado' : 'codificado',
         code,
         code_note: null,
         coded_by: operatorName(),
@@ -113,7 +116,7 @@ export async function setNoCode(item: CloudItem, reason: string) {
     client
       .from('items')
       .update({
-        status: 'sem_codigo',
+        status: item.status === 'confirmado' ? 'confirmado' : 'sem_codigo',
         code: null,
         code_note: clean.slice(0, 500),
         coded_by: operatorName(),

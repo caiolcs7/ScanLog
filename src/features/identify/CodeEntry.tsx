@@ -111,7 +111,10 @@ export function CodeEntry({
     try {
       await setCode(item, result.code!);
       setCodes((c) => ({ ...c, [item.id]: result.code! }));
-      setDone((d) => ({ ...d, [item.id]: 'codificado' }));
+      setDone((d) => ({
+        ...d,
+        [item.id]: item.status === 'confirmado' ? 'confirmado' : 'codificado',
+      }));
       advance();
     } catch (e) {
       setError(errorMessage(e));
@@ -124,7 +127,10 @@ export function CodeEntry({
     setError('');
     try {
       await setNoCode(item, reason);
-      setDone((d) => ({ ...d, [item.id]: 'sem_codigo' }));
+      setDone((d) => ({
+        ...d,
+        [item.id]: item.status === 'confirmado' ? 'confirmado' : 'sem_codigo',
+      }));
       advance();
     } catch (e) {
       setError(errorMessage(e));

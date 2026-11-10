@@ -4785,6 +4785,23 @@
     font-weight: 450;
     line-height: 1.4;
   }
+  /* Administrador: faixa estreita abaixo dos dois setores. */
+  .sector-choice button.sector-admin {
+    grid-column: 1 / -1;
+    min-height: 0;
+    padding: 12px 18px;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  .sector-choice button.sector-admin svg {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+  }
+  .sector-choice button.sector-admin strong {
+    font-size: 15px;
+  }
   .sector-choice button.selected {
     background: var(--primary-soft);
     box-shadow: inset 0 0 0 2px var(--primary);
@@ -4865,6 +4882,7 @@
 
   /* Fila de envio e erros de rede */
   .outbox-banner,
+  .push-banner,
   .cloud-error {
     display: flex;
     flex-wrap: wrap;
@@ -4878,6 +4896,7 @@
     box-shadow: inset 0 0 0 1px var(--primary-line);
   }
   .outbox-banner > span,
+  .push-banner > span,
   .cloud-error > span {
     flex: 1;
     min-width: 180px;
@@ -4885,7 +4904,8 @@
     gap: 2px;
     font-weight: 560;
   }
-  .outbox-banner small {
+  .outbox-banner small,
+  .push-banner small {
     font-weight: 450;
     color: var(--text-secondary);
   }
@@ -4895,6 +4915,15 @@
     background: var(--warning-soft);
     box-shadow: inset 0 0 0 1px
       color-mix(in srgb, var(--warning) 30%, transparent);
+  }
+
+  .push-banner > svg {
+    width: 20px;
+    height: 20px;
+    flex: none;
+  }
+  .settings-fields .push-banner {
+    margin-bottom: 0;
   }
 
   /* Cartão do item */

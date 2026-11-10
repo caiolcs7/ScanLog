@@ -93,7 +93,9 @@ export function FindDialog({
     setError('');
     setBusy(true);
     try {
-      if (!photos.length) throw new Error('Tire ao menos uma foto.');
+      // Item concluído (edição do administrador) já não tem os originais.
+      if (!photos.length && !item?.thumb_path)
+        throw new Error('Tire ao menos uma foto.');
       const original = item?.draftPhotos ?? [];
       const kept = new Set(photos.map((p) => p.path));
       const removePaths = original
@@ -101,7 +103,7 @@ export function FindDialog({
         .filter((p) => !kept.has(p));
       // Miniatura nova só quando a foto principal mudou.
       let thumb: { path: string; blob: Blob } | undefined;
-      if (photos[0].blob && photos[0].path !== original[0]?.path) {
+      if (photos[0]?.blob && photos[0].path !== original[0]?.path) {
         const blob = await makeThumbnail(photos[0].blob);
         thumb = { path: thumbPath(lotId, itemId, blob), blob };
         if (item?.thumb_path) removePaths.push(item.thumb_path);

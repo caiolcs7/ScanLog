@@ -58,12 +58,19 @@ import {
   type ItemStatus,
 } from '../../cloud/types';
 import { compressPhoto } from '../../services/photo';
+import { canCode, canStock } from '../../cloud/config';
 import { fullDate, mergeItems, pendingLot, type ItemView } from './items';
 import { OutboxBanner, saveOrShare } from './shared';
 import { FindDialog } from './FindDialog';
 import { CodeEntry } from './CodeEntry';
 
 type Signed = Extract<CloudAuth, { status: 'in' }>;
+/**
+ * Foto do cartão: a original, nítida, enquanto o item não foi concluído; a
+ * miniatura leve só depois da confirmação, quando os originais são apagados.
+ */
+const cardPhoto = (i: Pick<ItemView, 'photos' | 'thumb_path'>) =>
+  i.photos[0]?.path ?? i.thumb_path ?? undefined;
 type Filter = 'all' | ItemStatus;
 
 export function WordIcon() {
@@ -83,7 +90,9 @@ export function LotPage({
   auth: Signed;
   settings: Settings;
 }) {
-  const almox = auth.sector === 'almoxarifado';
+  const almox = canStock(auth.sector),
+    coder = canCode(auth.sector),
+    admin = auth.sector === 'admin';
   const lotQuery = useCloud(() => getLot(id), [id]),
     itemsQuery = useCloud(() => listItems(id), [id]);
   const pending = usePending(id);
@@ -107,7 +116,7 @@ export function LotPage({
   const thumbs = usePhotoUrls(
     items
       .filter((i) => !i.pending)
-      .map((i) => i.thumb_path ?? i.photos[0]?.path)
+      .map((i) => cardPhoto(i))
       .filter((p): p is string => !!p),
   );
   if (
@@ -153,7 +162,7 @@ export function LotPage({
   };
   const lotMenu: MenuItem[] = [
     { label: 'Renomear', icon: <Pencil />, onSelect: () => setRenaming(true) },
-    ...(lot.confirmed_count === 0
+    ...(lot.confirmed_count === 0 || admin
       ? [
           {
             label: 'Excluir lote',
@@ -233,7 +242,7 @@ export function LotPage({
               <span>Confirmar {toConfirm.length}</span>
             </button>
           )}
-          {!almox && toCode.length > 0 && (
+          {coder && toCode.length > 0 && (
             <button
               className="primary"
               aria-label="Preencher códigos"
@@ -325,7 +334,9 @@ export function LotPage({
               item={item}
               index={index}
               almox={almox}
-              thumb={thumbs[item.thumb_path ?? item.photos[0]?.path ?? '']}
+              coder={coder}
+              admin={admin}
+              thumb={thumbs[cardPhoto(item) ?? '']}
               onEdit={() => setEditing(item)}
               onDelete={() => setDeleting(item)}
               onCode={() => setCoding(item.id)}
@@ -360,7 +371,9 @@ export function LotPage({
       )}
       {coding && (
         <CodeEntry
-          items={items.filter((i) => i.status !== 'confirmado' && !i.pending)}
+          items={items.filter(
+            (i) => !i.pending && (i.status !== 'confirmado' || i.id === coding),
+          )}
           startId={coding}
           settings={settings}
           onClose={() => setCoding(null)}
@@ -410,6 +423,8 @@ function FindCard({
   item,
   index,
   almox,
+  coder,
+  admin,
   thumb,
   onEdit,
   onDelete,
@@ -420,6 +435,8 @@ function FindCard({
   item: ItemView;
   index: number;
   almox: boolean;
+  coder: boolean;
+  admin: boolean;
   thumb?: string;
   onEdit: () => void;
   onDelete: () => void;
@@ -438,8 +455,17 @@ function FindCard({
   const coded = item.status === 'codificado' || item.status === 'sem_codigo';
   const menu: MenuItem[] = almox
     ? [
-        ...(!confirmed
+        ...(!confirmed || admin
           ? [{ label: 'Editar', icon: <Pencil />, onSelect: onEdit }]
+          : []),
+        ...(coder && !item.pending
+          ? [
+              {
+                label: item.code ? 'Alterar código' : 'Preencher código',
+                icon: <PenLine />,
+                onSelect: onCode,
+              },
+            ]
           : []),
         ...(coded
           ? [
@@ -450,7 +476,7 @@ function FindCard({
               },
             ]
           : []),
-        ...(!confirmed
+        ...(!confirmed || admin
           ? [
               {
                 label: 'Excluir',
@@ -479,7 +505,7 @@ function FindCard({
         aria-label={
           almox ? `Editar item ${label}` : `Preencher código do item ${label}`
         }
-        disabled={confirmed}
+        disabled={confirmed && !admin}
         onClick={almox ? onEdit : onCode}
       >
         {src ? (
@@ -579,7 +605,7 @@ function FindCard({
             Confirmar
           </button>
         )}
-        {!almox && item.status === 'pendente' && !item.pending && (
+        {coder && item.status === 'pendente' && !item.pending && (
           <button className="find-confirm" onClick={onCode}>
             <PenLine />
             Preencher código
