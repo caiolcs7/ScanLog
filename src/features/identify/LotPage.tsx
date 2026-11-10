@@ -460,6 +460,14 @@ function FindCard({
       : [];
   const confirmed = item.status === 'confirmado';
   const coded = item.status === 'codificado' || item.status === 'sem_codigo';
+  // Toque no produto abre a ficha do setor (fotos e dados; tocar na foto
+  // amplia). Item concluído, para quem não edita, abre só as fotos.
+  const opens: 'edit' | 'code' | 'view' =
+    almox && (!confirmed || admin)
+      ? 'edit'
+      : coder && !confirmed && !item.pending
+        ? 'code'
+        : 'view';
   const menu: MenuItem[] = almox
     ? [
         ...(!confirmed || admin
@@ -509,9 +517,21 @@ function FindCard({
     >
       <button
         className="find-photos-preview n1"
-        aria-label={`Ver fotos do item ${label}`}
-        disabled={!src}
-        onClick={() => setViewing(true)}
+        aria-label={
+          opens === 'edit'
+            ? `Editar item ${label}`
+            : opens === 'code'
+              ? `Preencher código do item ${label}`
+              : `Ver fotos do item ${label}`
+        }
+        disabled={opens === 'view' && !src}
+        onClick={
+          opens === 'edit'
+            ? onEdit
+            : opens === 'code'
+              ? onCode
+              : () => setViewing(true)
+        }
       >
         {src ? (
           <img src={src} alt="" loading="lazy" decoding="async" />
