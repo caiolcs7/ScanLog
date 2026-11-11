@@ -5137,25 +5137,34 @@
     background: #0d0716f5;
   }
   .photo-viewer__stage {
-    overflow: auto;
-    display: grid;
-    place-items: center;
-    touch-action: pan-x pan-y pinch-zoom;
-  }
-  .photo-viewer__stage img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
     cursor: zoom-in;
   }
-  .photo-viewer__stage.zoomed {
-    place-items: start;
+  .photo-viewer__stage img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    transform-origin: center center;
+    will-change: transform;
+    -webkit-user-drag: none;
+    pointer-events: none;
   }
-  .photo-viewer__stage.zoomed img {
-    max-width: none;
-    max-height: none;
-    width: 250%;
-    cursor: zoom-out;
+  .photo-viewer__stage.zoomed {
+    cursor: grab;
+  }
+  .photo-viewer__stage.zoomed:active {
+    cursor: grabbing;
   }
   .photo-viewer__bar {
     display: flex;
@@ -5172,6 +5181,48 @@
     color: #fff;
     background: #ffffff1f;
     box-shadow: none;
+  }
+  .photo-viewer__bar button:disabled {
+    opacity: 0.35;
+  }
+  .photo-viewer__close {
+    position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
+    right: 12px;
+    z-index: 1;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    background: #0d0716b3;
+    box-shadow: none;
+  }
+  .photo-viewer__bar button {
+    padding: 0;
+    display: grid;
+    place-items: center;
+  }
+  @media (max-width: 480px) {
+    .photo-viewer__bar {
+      gap: 6px;
+      padding-inline: 8px;
+    }
+    .photo-viewer__bar button {
+      min-width: 44px;
+      min-height: 44px;
+    }
+  }
+  .photo-viewer__sep {
+    width: 1px;
+    height: 28px;
+    background: #ffffff33;
+  }
+  .photo-viewer__zoom {
+    min-width: 3.5em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
   }
   @media (max-width: 767px) {
     .sector-choice {
