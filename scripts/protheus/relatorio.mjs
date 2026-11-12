@@ -174,6 +174,9 @@ const andaresDoEndereco = (codigo, rua) =>
 
 // Posição do texto -> chave da rua no Relatório e chave do galão.
 function resolver(p, codigo) {
+  // caio (10/11): na R08, "R08G15S" é a bombona B15 do R08A1.
+  if (p.rua === 8 && p.letra === 'G' && p.andar === 'A2')
+    return { rua: 'R08A1', g: `B${p.n}`, letra: 'B', n: p.n };
   const andares = andaresDoEndereco(codigo, p.rua);
   const andar = andares.size === 1 ? [...andares][0] : p.andar;
   const rua = `R${String(p.rua).padStart(2, '0')}${andar}`;
@@ -229,6 +232,12 @@ for (const [codigo, r] of px) {
     const ru = state.ru[p.rua];
     if (!ru) continue;
     if (atuais.some((a) => a.rua === p.rua && a.g === p.g)) continue;
+    // Já está no mesmo galão do outro andar da rua (ex. R05G46 no A1 e o
+    // endereço só no A2): não duplica.
+    if (
+      atuais.some((a) => a.rua.slice(0, 3) === p.rua.slice(0, 3) && a.g === p.g)
+    )
+      continue;
     if (p.rua === 'R12A1' && /\b(PARAFUSO|PORCA|ARRUELA)\b/i.test(novo))
       continue;
     // A página mostra os galões 1..k[letra].n; os vazios nem ficam em g.

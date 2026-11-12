@@ -11,15 +11,17 @@ export function posicoes(d) {
   // Endereços de container (EXTA1C75P00) não são galão.
   const txt = m[1].toUpperCase().replace(/EXT\w*/g, ' ');
   const out = [];
-  const re = /R\s*(\d{1,2})|([GCB])\s*(\d{1,4})(S?)|\bA\b|(\d{1,4})(S?)/g;
+  // "R17G30 / 18G14": número colado em G/C/B logo depois de uma barra é a rua.
+  const re =
+    /R\s*(\d{1,2})|([GCB])\s*(\d{1,4})(S?)|\bA\b|(\d{1,4})(S?)|\/\s*(\d{1,2})(?=[GCB]\s*\d)/g;
   let rua = null,
     letra = null,
     faixa = false,
     ultimo = null,
     x;
   while ((x = re.exec(txt))) {
-    if (x[1]) {
-      rua = +x[1];
+    if (x[1] || x[7]) {
+      rua = +(x[1] || x[7]);
       letra = null;
       continue;
     }
