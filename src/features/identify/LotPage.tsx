@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   ArrowLeft,
   Camera,
@@ -8,6 +8,8 @@ import {
   Container,
   Download,
   MapPin,
+  MessageCircleQuestion,
+  MessagesSquare,
   Pencil,
   PenLine,
   Plus,
@@ -64,6 +66,9 @@ import { OutboxBanner, saveOrShare } from './shared';
 import { FindDialog } from './FindDialog';
 import { CodeEntry } from './CodeEntry';
 import { CloudPhotoViewer, PhotoViewer } from './PhotoViewer';
+import { ChatStrip, ItemChat } from './Conversa';
+import { unreadFor } from '../../cloud/conversa';
+import type { Sector } from '../../cloud/config';
 
 type Signed = Extract<CloudAuth, { status: 'in' }>;
 /**
@@ -72,7 +77,13 @@ type Signed = Extract<CloudAuth, { status: 'in' }>;
  */
 const cardPhoto = (i: Pick<ItemView, 'photos' | 'thumb_path'>) =>
   i.photos[0]?.path ?? i.thumb_path ?? undefined;
-type Filter = 'all' | ItemStatus;
+type Filter = 'all' | 'ajuda' | ItemStatus;
+type ChatTarget = { id: string; ask?: boolean };
+/** Conversa pedida pelo link do aviso: #/identificacao/<lote>?conversa=<item>. */
+function linkedChat() {
+  const query = window.location.hash.split('?')[1] ?? '';
+  return new URLSearchParams(query).get('conversa');
+}
 
 export function WordIcon() {
   return (
@@ -106,7 +117,16 @@ export function LotPage({
     [renaming, setRenaming] = useState(false),
     [removingLot, setRemovingLot] = useState(false),
     [filter, setFilter] = useState<Filter>('all'),
+    [chat, setChat] = useState<ChatTarget | null>(() => {
+      const id = linkedChat();
+      return id ? { id } : null;
+    }),
     [busy, setBusy] = useState(false);
+  // Tira o ?conversa= do endereço: voltar não reabre a conversa.
+  useEffect(() => {
+    if (linkedChat())
+      history.replaceState(null, '', window.location.hash.replace(/\?.*$/, ''));
+  }, []);
   const queuedLot = pending.find((e) => e.kind === 'lot');
   const lot: CloudLot | null =
     lotQuery.data ?? (queuedLot ? pendingLot(queuedLot) : null);
@@ -144,12 +164,33 @@ export function LotPage({
     );
   const count = (status: ItemStatus) =>
     items.filter((i) => i.status === status).length;
+  // Conversa só depois do envio à estrutura e com a migração 0011 aplicada.
+  const chatReady = lot.status !== 'rascunho';
+  const canChat = (i: ItemView) =>
+    chatReady && !i.pending && i.msg_count !== undefined;
+  const needsMe = (i: ItemView) =>
+    almox && !coder
+      ? (i.pedidos_abertos ?? 0) > 0 || unreadFor(i, auth.sector)
+      : coder && !almox
+        ? unreadFor(i, auth.sector)
+        : (i.pedidos_abertos ?? 0) > 0;
+  const helpItems = items.filter(needsMe);
+  const withChat = items.filter(
+    (i) => (i.msg_count ?? 0) > 0 || (i.pedidos_abertos ?? 0) > 0,
+  ).length;
+  const chatItem = chat ? items.find((i) => i.id === chat.id) : undefined;
   const toConfirm = items.filter(
     (i) => i.status === 'codificado' || i.status === 'sem_codigo',
   );
   const toCode = items.filter((i) => i.status === 'pendente' && !i.pending);
   const shown =
-    filter === 'all' ? items : items.filter((i) => i.status === filter);
+    filter === 'all'
+      ? items
+      : filter === 'ajuda'
+        ? items.filter(
+            (i) => (i.msg_count ?? 0) > 0 || (i.pedidos_abertos ?? 0) > 0,
+          )
+        : items.filter((i) => i.status === filter);
   const run = async (work: () => Promise<unknown>, done?: string) => {
     setBusy(true);
     try {
@@ -267,6 +308,13 @@ export function LotPage({
         </div>
       </div>
       <OutboxBanner entries={pending} />
+      {helpItems.length > 0 && (
+        <HelpBanner
+          sector={auth.sector}
+          items={helpItems}
+          onOpen={() => setChat({ id: helpItems[0].id })}
+        />
+      )}
       {(lotQuery.error || itemsQuery.error) && (
         <div className="cloud-error" role="alert">
           <span>{lotQuery.error || itemsQuery.error}</span>
@@ -291,6 +339,7 @@ export function LotPage({
                 ['codificado', 'Codificados', count('codificado')],
                 ['sem_codigo', 'Sem código', count('sem_codigo')],
                 ['confirmado', 'Confirmados', count('confirmado')],
+                ['ajuda', 'Conversas', withChat],
               ] as const
             )
               .filter(([key, , n]) => key === 'all' || n > 0)
@@ -337,6 +386,9 @@ export function LotPage({
               almox={almox}
               coder={coder}
               admin={admin}
+              sector={auth.sector}
+              chat={canChat(item)}
+              onChat={(ask) => setChat({ id: item.id, ask })}
               thumb={thumbs[cardPhoto(item) ?? '']}
               onEdit={() => setEditing(item)}
               onDelete={() => setDeleting(item)}
@@ -377,7 +429,23 @@ export function LotPage({
           )}
           startId={coding}
           settings={settings}
+          sector={auth.sector}
+          onChat={
+            chatReady && items.some((i) => i.msg_count !== undefined)
+              ? (chatId: string, ask?: boolean) => setChat({ id: chatId, ask })
+              : undefined
+          }
           onClose={() => setCoding(null)}
+        />
+      )}
+      {chat && chatItem && (
+        <ItemChat
+          key={chat.id}
+          item={chatItem}
+          lotName={lot.name}
+          sector={auth.sector}
+          startAsk={chat.ask}
+          onClose={() => setChat(null)}
         />
       )}
       {deleting && (
@@ -426,6 +494,9 @@ function FindCard({
   almox,
   coder,
   admin,
+  sector,
+  chat,
+  onChat,
   thumb,
   onEdit,
   onDelete,
@@ -438,6 +509,9 @@ function FindCard({
   almox: boolean;
   coder: boolean;
   admin: boolean;
+  sector: Sector;
+  chat: boolean;
+  onChat: (ask?: boolean) => void;
   thumb?: string;
   onEdit: () => void;
   onDelete: () => void;
@@ -482,6 +556,15 @@ function FindCard({
               },
             ]
           : []),
+        ...(chat
+          ? [
+              {
+                label: 'Conversa com a estrutura',
+                icon: <MessagesSquare />,
+                onSelect: () => onChat(),
+              },
+            ]
+          : []),
         ...(coded
           ? [
               {
@@ -502,9 +585,20 @@ function FindCard({
             ]
           : []),
       ]
-    : !confirmed
-      ? [{ label: 'Preencher código', icon: <PenLine />, onSelect: onCode }]
-      : [];
+    : [
+        ...(!confirmed
+          ? [{ label: 'Preencher código', icon: <PenLine />, onSelect: onCode }]
+          : []),
+        ...(chat
+          ? [
+              {
+                label: item.status === 'pendente' ? 'Pedir ajuda' : 'Conversa',
+                icon: <MessageCircleQuestion />,
+                onSelect: () => onChat(!item.msg_count),
+              },
+            ]
+          : []),
+      ];
   const expires = item.thumb_expires_at
     ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(
         new Date(item.thumb_expires_at),
@@ -624,6 +718,9 @@ function FindCard({
             </li>
           )}
         </ul>
+        {chat && (
+          <ChatStrip item={item} sector={sector} onOpen={() => onChat()} />
+        )}
         {almox && coded && (
           <button className="find-confirm" onClick={onConfirm}>
             <CircleCheck />
@@ -631,10 +728,22 @@ function FindCard({
           </button>
         )}
         {coder && item.status === 'pendente' && !item.pending && (
-          <button className="find-confirm" onClick={onCode}>
-            <PenLine />
-            Preencher código
-          </button>
+          <div className="find-coder-actions">
+            <button className="find-confirm" onClick={onCode}>
+              <PenLine />
+              Preencher código
+            </button>
+            {chat && !item.msg_count && (
+              <button
+                className="find-help"
+                aria-label={`Pedir ajuda no item ${label}`}
+                title="Pedir ajuda ao almoxarifado"
+                onClick={() => onChat(true)}
+              >
+                <MessageCircleQuestion />
+              </button>
+            )}
+          </div>
         )}
       </div>
       {viewing &&
@@ -644,6 +753,44 @@ function FindCard({
           <CloudPhotoViewer paths={paths} onClose={() => setViewing(false)} />
         ))}
     </li>
+  );
+}
+
+/** Quem precisa agir na conversa: pedidos para o almoxarifado, respostas para a estrutura. */
+function HelpBanner({
+  sector,
+  items,
+  onOpen,
+}: {
+  sector: Sector;
+  items: ItemView[];
+  onOpen: () => void;
+}) {
+  const n = items.length;
+  const asked = items.filter((i) => (i.pedidos_abertos ?? 0) > 0).length;
+  const text =
+    sector === 'estrutura'
+      ? `${n === 1 ? 'Chegou resposta' : 'Chegaram respostas'} do almoxarifado em ${n} ${n === 1 ? 'item' : 'itens'}.`
+      : asked
+        ? `A estrutura precisa de ajuda em ${n} ${n === 1 ? 'item' : 'itens'}.`
+        : `Mensagem nova da estrutura em ${n} ${n === 1 ? 'item' : 'itens'}.`;
+  return (
+    <div className="help-banner" role="status">
+      <MessageCircleQuestion />
+      <span>
+        {text}
+        <small>
+          {items
+            .slice(0, 6)
+            .map((i) => `Item ${itemLabel(i.ord)}`)
+            .join(' · ')}
+          {n > 6 ? ' …' : ''}
+        </small>
+      </span>
+      <button className="accent" onClick={onOpen}>
+        {sector === 'estrutura' ? 'Ver resposta' : 'Responder'}
+      </button>
+    </div>
   );
 }
 

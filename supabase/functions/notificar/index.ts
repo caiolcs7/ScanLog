@@ -4,6 +4,7 @@
 //   { tipo: 'chave' }            → devolve a chave pública VAPID (gera na 1ª vez)
 //   { tipo: 'lote', id }         → estrutura: chegou levantamento novo
 //   { tipo: 'item', id }         → almoxarifado: código preenchido
+//   { tipo: 'mensagem', id }     → o outro setor: pedido, resposta ou recado
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import * as webpush from 'jsr:@negrel/webpush@0.5.0';
 
@@ -88,6 +89,42 @@ async function enviar(
 }
 
 const itens = (n: number) => `${n} ${n === 1 ? 'item' : 'itens'}`;
+const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 });
+
+type Mensagem = {
+  id: string;
+  item_id: string;
+  lot_id: string;
+  lado: 'almoxarifado' | 'estrutura';
+  autor_papel: string;
+  autor_nome: string;
+  tipo: 'pedido' | 'resposta' | 'texto';
+  pedido: 'medida' | 'foto' | 'info' | null;
+  texto: string | null;
+  medida: number | null;
+  unidade: string | null;
+  foto: unknown;
+};
+/** Título e texto do aviso de uma mensagem da conversa. */
+function avisoMensagem(m: Mensagem) {
+  const quem = m.lado === 'estrutura' ? 'Estrutura' : 'Almoxarifado';
+  const medida = m.medida != null
+    ? m.unidade === 'pol' ? `${numero.format(m.medida)}″` : `${numero.format(m.medida)} ${m.unidade}`
+    : '';
+  const partes = [medida, m.foto && m.tipo !== 'pedido' ? 'Foto' : '', m.texto ?? '']
+    .filter(Boolean)
+    .join(' · ');
+  const titulo = m.tipo === 'pedido'
+    ? m.pedido === 'medida'
+      ? 'Estrutura pediu uma medida'
+      : m.pedido === 'foto'
+      ? 'Estrutura pediu uma foto'
+      : 'Estrutura tem uma pergunta'
+    : m.tipo === 'resposta'
+    ? 'Almoxarifado respondeu'
+    : `${quem}: nova mensagem`;
+  return { titulo, texto: partes.slice(0, 160) };
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
@@ -146,6 +183,32 @@ Deno.serve(async (req) => {
         // Mesmo lote: o aviso novo substitui o anterior, sem encher a tela.
         tag: `codigos-${item.lot_id}`,
         url: `#/identificacao/${item.lot_id}`,
+      });
+      return json({ enviados });
+    }
+    if (pedido.tipo === 'mensagem') {
+      const { data: m } = await db
+        .from('item_mensagens')
+        .select('id, item_id, lot_id, lado, autor_papel, autor_nome, tipo, pedido, texto, medida, unidade, foto')
+        .eq('id', pedido.id)
+        .maybeSingle<Mensagem>();
+      if (!m) return json({ enviados: 0 });
+      if (!(await primeiraVez(`msg:${m.id}`))) return json({ enviados: 0 });
+      const [{ data: item }, { data: lote }] = await Promise.all([
+        db.from('items').select('ord').eq('id', m.item_id).maybeSingle(),
+        db.from('lots').select('name').eq('id', m.lot_id).maybeSingle(),
+      ]);
+      const destino = m.lado === 'estrutura' ? ['almoxarifado'] : ['estrutura'];
+      // O administrador recebe tudo, menos o que ele mesmo escreveu.
+      if (m.autor_papel !== 'admin') destino.push('admin');
+      const { titulo, texto } = avisoMensagem(m);
+      const enviados = await enviar(destino, {
+        title: titulo,
+        body: `Item ${String(item?.ord ?? '').padStart(2, '0')} · ${lote?.name ?? 'lote'}` +
+          (texto ? `: ${texto}` : '') + ` · ${m.autor_nome}`,
+        // Mesmo item: o aviso novo substitui o anterior.
+        tag: `conversa-${m.item_id}`,
+        url: `#/identificacao/${m.lot_id}?conversa=${m.item_id}`,
       });
       return json({ enviados });
     }

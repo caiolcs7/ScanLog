@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Camera,
   CloudUpload,
+  MessageCircleQuestion,
   Pencil,
   Plus,
   RefreshCw,
@@ -26,7 +27,7 @@ import type { CloudAuth } from '../../cloud/auth';
 import { useCloud, usePending } from '../../cloud/hooks';
 import { queueLot } from '../../cloud/outbox';
 import { lotStatusLabel, type CloudLot } from '../../cloud/types';
-import { canStock } from '../../cloud/config';
+import { canStock, type Sector } from '../../cloud/config';
 import { fullDate, pendingLot } from './items';
 import { OutboxBanner, PushBanner, saveOrShare } from './shared';
 
@@ -161,6 +162,7 @@ export function LotList({ auth }: { auth: Signed }) {
               lot={lot}
               index={index}
               queued={pending.some((e) => e.lotId === lot.id)}
+              sector={auth.sector}
             />
           ))}
         </div>
@@ -177,11 +179,18 @@ function LotRow({
   lot,
   index,
   queued,
+  sector,
 }: {
   lot: CloudLot;
   index: number;
   queued: boolean;
+  sector: Sector;
 }) {
+  const asked = lot.pedidos_abertos ?? 0,
+    answered = lot.novas_estrutura ?? 0,
+    fromStructure = lot.novas_almox ?? 0;
+  const s = (n: number, one: string, many: string) =>
+    `${n} ${n === 1 ? one : many}`;
   const open = () => navigate(`/identificacao/${lot.id}`);
   const progress = lot.item_count
     ? Math.round((lot.coded_count / lot.item_count) * 100)
@@ -215,6 +224,31 @@ function LotRow({
             <span className="status queued">
               <CloudUpload />
               Aguardando envio
+            </span>
+          )}
+          {sector !== 'estrutura' && asked > 0 && (
+            <span className="status help-ask">
+              <MessageCircleQuestion />
+              {s(asked, 'pedido de ajuda', 'pedidos de ajuda')}
+            </span>
+          )}
+          {sector === 'almoxarifado' && !asked && fromStructure > 0 && (
+            <span className="status help-new">
+              {s(fromStructure, 'mensagem nova', 'mensagens novas')}
+            </span>
+          )}
+          {sector === 'estrutura' && answered > 0 && (
+            <span className="status help-new">
+              {s(answered, 'resposta nova', 'respostas novas')}
+            </span>
+          )}
+          {sector === 'estrutura' && !answered && asked > 0 && (
+            <span className="status help-wait">
+              {s(
+                asked,
+                'aguardando o almoxarifado',
+                'aguardando o almoxarifado',
+              )}
             </span>
           )}
         </div>

@@ -6,6 +6,7 @@ import {
   Check,
   Container,
   MapPin,
+  MessageCircleQuestion,
   Scale,
   ScanLine,
 } from 'lucide-react';
@@ -20,6 +21,8 @@ import { PhotoViewer } from './PhotoViewer';
 import { itemStatusLabel } from '../../cloud/types';
 import { ScannerPanel } from '../scanner/ScannerPanel';
 import { fullDate, type ItemView } from './items';
+import { ChatStrip } from './Conversa';
+import type { Sector } from '../../cloud/config';
 
 /** Valida o código digitado ou lido com as mesmas regras do levantamento. */
 export function checkCode(raw: string, settings: Settings) {
@@ -40,11 +43,16 @@ export function CodeEntry({
   items,
   startId,
   settings,
+  sector,
+  onChat,
   onClose,
 }: {
   items: ItemView[];
   startId: string;
   settings: Settings;
+  sector: Sector;
+  /** Abre a conversa do item com o almoxarifado (ask: já no pedido). */
+  onChat?: (id: string, ask?: boolean) => void;
   onClose: () => void;
 }) {
   // Lista fixa ao abrir: o item salvo não some debaixo do dedo.
@@ -86,6 +94,8 @@ export function CodeEntry({
     input.current?.focus();
   }, [item]);
   const status = done[item.id] ?? item.status;
+  // Conversa: dados ao vivo (a lista da tela fica fixa ao abrir).
+  const live = items.find((i) => i.id === item.id) ?? item;
   function advance() {
     const next = list.findIndex(
       (i, j) => j > index && (done[i.id] ?? i.status) === 'pendente',
@@ -206,6 +216,31 @@ export function CodeEntry({
           <p className="helper">
             Cadastrado em {fullDate(item.created_at)} por {item.created_by}
           </p>
+          {onChat &&
+            live.msg_count !== undefined &&
+            (live.msg_count ? (
+              <ChatStrip
+                item={live}
+                sector={sector}
+                onOpen={() => onChat(item.id)}
+              />
+            ) : (
+              status === 'pendente' && (
+                <button
+                  type="button"
+                  className="code-help"
+                  onClick={() => onChat(item.id, true)}
+                >
+                  <MessageCircleQuestion />
+                  <span>
+                    Falta informação?
+                    <small>
+                      Peça uma medida, foto ou detalhe ao almoxarifado
+                    </small>
+                  </span>
+                </button>
+              )
+            ))}
           {noCode ? (
             <form
               className="code-form"
