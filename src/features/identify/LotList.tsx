@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowRight,
@@ -22,7 +22,7 @@ import {
 } from '../../components/ui';
 import { db } from '../../core/database';
 import { migrateLocalLots } from '../../core/identify';
-import { listItemsOf, listLots } from '../../cloud/api';
+import { listItemsOf, listLots, lotIdsByGalao } from '../../cloud/api';
 import type { CloudAuth } from '../../cloud/auth';
 import { useCloud, usePending } from '../../cloud/hooks';
 import { queueLot } from '../../cloud/outbox';
@@ -33,6 +33,23 @@ import { OutboxBanner, PushBanner, saveOrShare } from './shared';
 
 type Signed = Extract<CloudAuth, { status: 'in' }>;
 type Filter = 'open' | 'done';
+
+/**
+ * Busca pelo galão: "r09g01s", "R9G1S" ou "r09g01" (sem S pega o andar de
+ * baixo e o S). Devolve as grafias possíveis para comparar com o cadastro.
+ */
+export function galaoVariants(raw: string) {
+  const m = /^R0*(\d{1,3})G0*(\d{1,3})(S?)$/.exec(
+    raw.toLocaleUpperCase('pt-BR').replace(/[\s._/-]/g, ''),
+  );
+  if (!m) return [];
+  const pad = (n: string) => [n.padStart(2, '0'), n];
+  const out: string[] = [];
+  for (const r of pad(m[1]))
+    for (const g of pad(m[2]))
+      for (const s of m[3] ? ['S'] : ['', 'S']) out.push(`R${r}G${g}${s}`);
+  return [...new Set(out)];
+}
 
 export function LotList({ auth }: { auth: Signed }) {
   const almox = canStock(auth.sector),
@@ -52,12 +69,34 @@ export function LotList({ auth }: { auth: Signed }) {
       .map(pendingLot);
     return [...queued, ...cloud];
   }, [data, pending]);
+  const galoes = useMemo(() => galaoVariants(search), [search]);
+  const [byGalao, setByGalao] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (!galoes.length) {
+      setByGalao(null);
+      return;
+    }
+    let stale = false;
+    const t = setTimeout(() => {
+      lotIdsByGalao(galoes)
+        .then((ids) => !stale && setByGalao(new Set(ids)))
+        .catch(() => !stale && setByGalao(null));
+    }, 250);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
+  }, [galoes]);
   if (!data && loading) return <Loading text="Buscando lotes…" />;
   const open = lots.filter((l) => l.status !== 'confirmado'),
     done = lots.filter((l) => l.status === 'confirmado');
   const term = search.toLocaleLowerCase('pt-BR');
   const shown = (filter === 'open' ? open : done)
-    .filter((l) => l.name.toLocaleLowerCase('pt-BR').includes(term))
+    .filter(
+      (l) =>
+        l.name.toLocaleLowerCase('pt-BR').includes(term) ||
+        (byGalao?.has(l.id) ?? false),
+    )
     // A estrutura trabalha do mais antigo para o mais novo.
     .sort((a, b) =>
       !almox && !admin && filter === 'open'
@@ -132,7 +171,7 @@ export function LotList({ auth }: { auth: Signed }) {
               <Search />
               <input
                 aria-label="Buscar lotes"
-                placeholder="Buscar lote"
+                placeholder="Buscar lote ou galão"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
