@@ -64,14 +64,18 @@ export async function sendLot(id: string) {
 export async function deleteLot(lot: CloudLot) {
   const client = await supabase();
   const items = await listItems(lot.id);
-  await removeFiles(items.flatMap(itemPaths));
+  await removeFiles([
+    ...items.flatMap(itemPaths),
+    ...(await chatPhotoPaths(items.map((i) => i.id))),
+  ]);
   await must(client.from('lots').delete().eq('id', lot.id));
   cloudChanged();
 }
 export async function deleteItem(item: CloudItem) {
   const client = await supabase();
+  const chat = await chatPhotoPaths([item.id]);
   await must(client.from('items').delete().eq('id', item.id));
-  await removeFiles(itemPaths(item));
+  await removeFiles([...itemPaths(item), ...chat]);
   cloudChanged();
 }
 export function itemPaths(item: Pick<CloudItem, 'photos' | 'thumb_path'>) {
@@ -79,6 +83,21 @@ export function itemPaths(item: Pick<CloudItem, 'photos' | 'thumb_path'>) {
     ...item.photos.map((p) => p.path),
     ...(item.thumb_path ? [item.thumb_path] : []),
   ];
+}
+/** Fotos da conversa dos itens, apagadas junto com os originais. */
+async function chatPhotoPaths(itemIds: string[]) {
+  const client = await supabase();
+  const paths: string[] = [];
+  for (let i = 0; i < itemIds.length; i += 50) {
+    const { data } = await client
+      .from('item_mensagens')
+      .select('foto')
+      .in('item_id', itemIds.slice(i, i + 50))
+      .not('foto', 'is', null);
+    for (const row of (data ?? []) as { foto: { path?: string } | null }[])
+      if (row.foto?.path) paths.push(row.foto.path);
+  }
+  return paths;
 }
 async function removeFiles(paths: string[]) {
   if (!paths.length) return;
@@ -145,7 +164,13 @@ export async function confirmItems(items: CloudItem[]) {
     );
   }
   const withPhotos = ready.filter((i) => i.photos.length);
-  await removeFiles(withPhotos.flatMap((i) => i.photos.map((p) => p.path)));
+  await removeFiles([
+    ...withPhotos.flatMap((i) => i.photos.map((p) => p.path)),
+    // Fotos da conversa saem com os originais; o texto da conversa fica.
+    ...(await chatPhotoPaths(
+      ready.filter((i) => i.msg_count).map((i) => i.id),
+    ).catch(() => [])),
+  ]);
   for (let i = 0; i < withPhotos.length; i += 50)
     await client
       .from('items')

@@ -5,6 +5,7 @@ import type { Page, Route } from '@playwright/test';
  * setor, tabelas lots/items com as mesmas regras dos gatilhos e o Storage.
  */
 type Row = Record<string, unknown> & { id: string };
+type Table = 'lots' | 'items' | 'messages';
 const HOST = 'https://pygedyytlcplfweibenv.supabase.co';
 export const passwords = {
   almoxarifado: 'senha-almox',
@@ -19,6 +20,7 @@ function jwt(payload: object) {
 export class SupabaseMock {
   lots: Row[] = [];
   items: Row[] = [];
+  messages: Row[] = [];
   files = new Map<string, Buffer>();
   removed: string[] = [];
   async install(page: Page) {
@@ -137,7 +139,18 @@ export class SupabaseMock {
     const items = this.items.filter((i) => i.lot_id === lotId);
     const coded = items.filter((i) => i.status !== 'pendente').length,
       confirmed = items.filter((i) => i.status === 'confirmado').length;
+    const unread = (i: Row, side: string) =>
+      !!i.ultima_msg_em &&
+      i.ultima_msg_lado !== side &&
+      String(i.ultima_msg_em) >
+        String(
+          (side === 'estrutura' ? i.lido_estrutura_em : i.lido_almox_em) ?? '',
+        );
     Object.assign(lot, {
+      pedidos_abertos: items.filter((i) => Number(i.pedidos_abertos) > 0)
+        .length,
+      novas_almox: items.filter((i) => unread(i, 'almoxarifado')).length,
+      novas_estrutura: items.filter((i) => unread(i, 'estrutura')).length,
       item_count: items.length,
       coded_count: coded,
       confirmed_count: confirmed,
@@ -152,7 +165,7 @@ export class SupabaseMock {
               : 'enviado',
     });
   }
-  private visible(table: 'lots' | 'items', sector?: string) {
+  private visible(table: Table, sector?: string) {
     if (sector !== 'almoxarifado' && sector !== 'estrutura') return [];
     if (sector === 'almoxarifado') return this[table];
     const sent = new Set(
@@ -160,7 +173,105 @@ export class SupabaseMock {
     );
     return table === 'lots'
       ? this.lots.filter((l) => sent.has(l.id))
-      : this.items.filter((i) => sent.has(String(i.lot_id)));
+      : this[table].filter((i) => sent.has(String(i.lot_id)));
+  }
+  /** Conversa: mesmas regras e resumo da migração 0011. */
+  private chatSummary(itemId: string) {
+    const item = this.items.find((i) => i.id === itemId);
+    if (!item) return;
+    const list = this.messages.filter((m) => m.item_id === itemId);
+    const last = list.at(-1);
+    Object.assign(item, {
+      msg_count: list.length,
+      pedidos_abertos: list.filter((m) => m.situacao === 'aberto').length,
+    });
+    if (last)
+      Object.assign(item, {
+        ultima_msg: [
+          last.pedido
+            ? { medida: 'Medida', foto: 'Foto', info: 'Pergunta' }[
+                String(last.pedido)
+              ]
+            : '',
+          last.medida != null
+            ? `${String(last.medida).replace('.', ',')} ${last.unidade}`
+            : '',
+          last.foto && last.tipo !== 'pedido' ? 'Foto' : '',
+          last.texto ?? '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        ultima_msg_em: last.criado_em,
+        ultima_msg_lado: last.lado,
+      });
+    this.refresh(String(item.lot_id));
+  }
+  private addMessage(body: Row, sector?: string) {
+    const item = this.visible('items', sector).find(
+      (i) => i.id === body.item_id,
+    );
+    const lot = this.lots.find((l) => l.id === item?.lot_id);
+    if (!item || !lot) throw new Error('Item não encontrado.');
+    if (lot.status === 'rascunho')
+      throw new Error('Envie o lote para a estrutura antes de conversar.');
+    if (item.status === 'confirmado') throw new Error('Item já confirmado.');
+    if (body.lado !== sector) throw new Error('Lado inválido.');
+    if (body.tipo === 'pedido' && sector !== 'estrutura')
+      throw new Error('Só a estrutura faz pedidos.');
+    if (body.tipo === 'resposta') {
+      const target = this.messages.find((m) => m.id === body.responde_a);
+      if (!target || target.situacao !== 'aberto')
+        throw new Error('Este pedido já foi fechado.');
+      Object.assign(target, {
+        situacao: 'respondido',
+        fechado_em: new Date().toISOString(),
+      });
+    }
+    const now = new Date(Date.now() + this.messages.length).toISOString();
+    const row = {
+      ...body,
+      id: body.id ?? crypto.randomUUID(),
+      lot_id: item.lot_id,
+      autor_papel: sector,
+      situacao: body.tipo === 'pedido' ? 'aberto' : null,
+      fechado_em: null,
+      criado_em: now,
+    } as Row;
+    this.messages.push(row);
+    Object.assign(
+      item,
+      sector === 'estrutura'
+        ? { lido_estrutura_em: now }
+        : { lido_almox_em: now },
+    );
+    this.chatSummary(String(item.id));
+    return row;
+  }
+  private rpc(name: string, args: Row, sector?: string) {
+    if (name === 'conversa_lida') {
+      const item = this.visible('items', sector).find(
+        (i) => i.id === args.p_item,
+      );
+      if (item)
+        Object.assign(
+          item,
+          sector === 'estrutura'
+            ? { lido_estrutura_em: new Date().toISOString() }
+            : { lido_almox_em: new Date().toISOString() },
+        );
+      if (item) this.refresh(String(item.lot_id));
+      return null;
+    }
+    if (name === 'pedido_cancelar') {
+      const m = this.messages.find(
+        (x) => x.id === args.p_id && x.situacao === 'aberto',
+      );
+      if (!m) throw new Error('Este pedido já foi fechado.');
+      m.situacao = 'cancelado';
+      this.chatSummary(String(m.item_id));
+      return null;
+    }
+    throw new Error('rpc ' + name);
   }
   private insert(table: 'lots' | 'items', body: Row) {
     const now = new Date().toISOString();
@@ -173,6 +284,9 @@ export class SupabaseMock {
         item_count: 0,
         coded_count: 0,
         confirmed_count: 0,
+        pedidos_abertos: 0,
+        novas_almox: 0,
+        novas_estrutura: 0,
         created_at: now,
         updated_at: now,
         sent_at: null,
@@ -191,6 +305,13 @@ export class SupabaseMock {
       photos: [],
       thumb_path: null,
       ...body,
+      msg_count: 0,
+      pedidos_abertos: 0,
+      ultima_msg: null,
+      ultima_msg_em: null,
+      ultima_msg_lado: null,
+      lido_almox_em: null,
+      lido_estrutura_em: null,
       ord,
       status: 'pendente',
       code: null,
@@ -221,7 +342,15 @@ export class SupabaseMock {
       !(Object.keys(patch).length === 1 && 'photos' in patch)
     )
       throw new Error('Item já confirmado.');
+    const wasPending = row.status === 'pendente';
     Object.assign(row, patch, { updated_at: now.toISOString() });
+    // Código preenchido: pedidos abertos deixam de ser necessários.
+    if (wasPending && row.status !== 'pendente') {
+      for (const m of this.messages)
+        if (m.item_id === row.id && m.situacao === 'aberto')
+          m.situacao = 'dispensado';
+      row.pedidos_abertos = 0;
+    }
     if (patch.status === 'codificado' || patch.status === 'sem_codigo')
       row.coded_at = now.toISOString();
     if (patch.status === 'pendente')
@@ -245,10 +374,34 @@ export class SupabaseMock {
     url: URL,
     json: (b: unknown, s?: number) => Promise<void>,
   ) {
-    if (table !== 'lots' && table !== 'items')
-      return json({ message: 'tabela' }, 404);
     const request = route.request();
     const sector = this.sector(route);
+    if (table.startsWith('rpc/'))
+      try {
+        return json(
+          this.rpc(table.slice(4), request.postDataJSON() ?? {}, sector),
+        );
+      } catch (e) {
+        return json({ message: (e as Error).message }, 400);
+      }
+    if (table === 'item_mensagens') {
+      const single = (request.headers()['accept'] ?? '').includes(
+        'vnd.pgrst.object',
+      );
+      try {
+        if (request.method() === 'GET')
+          return json(this.filter(this.visible('messages', sector), url));
+        if (request.method() === 'POST') {
+          const row = this.addMessage(request.postDataJSON() as Row, sector);
+          return json(single ? row : [row], 201);
+        }
+      } catch (e) {
+        return json({ message: (e as Error).message }, 400);
+      }
+      return json({ message: 'método' }, 405);
+    }
+    if (table !== 'lots' && table !== 'items')
+      return json({ message: 'tabela' }, 404);
     const single = (request.headers()['accept'] ?? '').includes(
       'vnd.pgrst.object',
     );
@@ -361,9 +514,12 @@ export class SupabaseMock {
       rest.startsWith('object/identificacao/') &&
       request.method() === 'POST'
     ) {
-      if (this.sector(route) !== 'almoxarifado')
-        return json({ message: 'Sem permissão' }, 403);
       const p = decodeURIComponent(rest.slice('object/identificacao/'.length));
+      if (
+        this.sector(route) !== 'almoxarifado' &&
+        !(this.sector(route) === 'estrutura' && p.startsWith('conversa/'))
+      )
+        return json({ message: 'Sem permissão' }, 403);
       this.files.set(
         p,
         fileFrom(
