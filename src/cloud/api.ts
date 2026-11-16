@@ -32,6 +32,14 @@ export async function listItems(lotId: string) {
   );
 }
 /** Itens de vários lotes, para a planilha do período. */
+/** Lotes que têm itens em algum destes galões (busca pelo galão). */
+export async function lotIdsByGalao(galoes: string[]) {
+  const client = await supabase();
+  const rows = await must<{ lot_id: string }[]>(
+    client.from('items').select('lot_id').in('bombona', galoes).limit(1000),
+  );
+  return [...new Set(rows.map((r) => r.lot_id))];
+}
 export async function listItemsOf(lotIds: string[]) {
   if (!lotIds.length) return [];
   const client = await supabase();
