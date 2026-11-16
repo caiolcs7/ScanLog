@@ -3,6 +3,7 @@ import { BUCKET, type Sector } from './config';
 import { operatorName } from './auth';
 import { cloudChanged } from './api';
 import type {
+  ChatFile,
   CloudItem,
   CloudMessage,
   CloudPhoto,
@@ -36,6 +37,7 @@ export type Outgoing = {
   medida?: number;
   unidade?: Unit;
   foto?: CloudPhoto;
+  arquivo?: ChatFile;
   respondeA?: string;
 };
 export async function sendMessage(m: Outgoing) {
@@ -56,6 +58,7 @@ export async function sendMessage(m: Outgoing) {
         medida: m.medida ?? null,
         unidade: m.medida ? (m.unidade ?? 'mm') : null,
         foto: m.foto ?? null,
+        ...(m.arquivo ? { arquivo: m.arquivo } : {}),
         responde_a: m.respondeA ?? null,
         situacao: m.tipo === 'pedido' ? 'aberto' : null,
       })
@@ -77,6 +80,69 @@ export async function uploadChatPhoto(
     .upload(path, photo.blob, { contentType: 'image/jpeg', upsert: false });
   if (error) throw cloudError(error);
   return { path, width: photo.width, height: photo.height };
+}
+/** Tipos que o bucket aceita; o resto sobe como binário genérico. */
+const KNOWN_TYPES = new Set([
+  'image/png',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+  'image/jpeg',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/zip',
+  'application/x-zip-compressed',
+]);
+export const MAX_FILE_BYTES = 20 * 1024 * 1024;
+/** Arquivo da conversa: vai inteiro, com o nome original para baixar. */
+export async function uploadChatFile(
+  item: Pick<CloudItem, 'id' | 'lot_id'>,
+  file: File,
+): Promise<ChatFile> {
+  if (file.size > MAX_FILE_BYTES)
+    throw new Error('Arquivo maior que 20 MB. Envie um menor.');
+  const client = await supabase();
+  const ext = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toLowerCase();
+  const path = `conversa/${item.lot_id}/${item.id}/${crypto.randomUUID()}${ext ? `.${ext}` : ''}`;
+  const tipo = KNOWN_TYPES.has(file.type)
+    ? file.type
+    : 'application/octet-stream';
+  const { error } = await client.storage
+    .from(BUCKET)
+    .upload(path, file, { contentType: tipo, upsert: false });
+  if (error) throw cloudError(error);
+  return { path, nome: file.name.slice(0, 120), tamanho: file.size, tipo };
+}
+/** Baixa o arquivo com o nome original. */
+export async function downloadChatFile(f: ChatFile) {
+  const client = await supabase();
+  const { data, error } = await client.storage
+    .from(BUCKET)
+    .createSignedUrl(f.path, 600, { download: f.nome });
+  if (error || !data?.signedUrl)
+    throw new Error(
+      'Arquivo indisponível. Ele é apagado quando o item é concluído.',
+    );
+  const a = document.createElement('a');
+  a.href = data.signedUrl;
+  a.download = f.nome;
+  a.rel = 'noopener';
+  document.body.append(a);
+  a.click();
+  a.remove();
+}
+export function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`;
 }
 export async function markRead(itemId: string) {
   const client = await supabase();

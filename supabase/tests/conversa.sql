@@ -104,6 +104,21 @@ do $$ declare novo uuid; begin
     select item2, lot, 'estrutura', 'estrutura', 'Ana', 'texto', 'Era o 000777' from ids;
 end $$;
 
+-- Arquivos: os dois setores enviam, só na pasta da conversa.
+do $$ declare i public.items; begin
+  insert into public.item_mensagens (item_id, lot_id, lado, autor_papel, autor_nome, tipo, arquivo)
+    select item, lot, 'estrutura', 'estrutura', 'Ana', 'texto',
+           jsonb_build_object('path', 'conversa/' || lot || '/' || item || '/d.pdf', 'nome', 'desenho.pdf', 'tamanho', 1234, 'tipo', 'application/pdf', 'x', 1) from ids;
+  select * into i from public.items where id = (select item from ids);
+  if i.ultima_msg <> 'Arquivo desenho.pdf' then raise exception 'FALHOU: prévia do arquivo %', i.ultima_msg; end if;
+  if (select arquivo ? 'x' from public.item_mensagens where arquivo is not null) then raise exception 'FALHOU: arquivo sem limpeza'; end if;
+  begin
+    insert into public.item_mensagens (item_id, lot_id, lado, autor_papel, autor_nome, tipo, arquivo)
+      select item, lot, 'estrutura', 'estrutura', 'Ana', 'texto', '{"path":"originais/x.pdf","nome":"x"}' from ids;
+    raise exception 'FALHOU: arquivo fora da pasta';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+
 -- Confirmado: conversa encerrada para os setores.
 select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"role":"almoxarifado"}}', true);
 update public.items set status = 'confirmado', confirmed_by = 'Caio' where id = (select item2 from ids);

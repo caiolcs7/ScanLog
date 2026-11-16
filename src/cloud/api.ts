@@ -91,11 +91,16 @@ async function chatPhotoPaths(itemIds: string[]) {
   for (let i = 0; i < itemIds.length; i += 50) {
     const { data } = await client
       .from('item_mensagens')
-      .select('foto')
+      .select('foto, arquivo')
       .in('item_id', itemIds.slice(i, i + 50))
-      .not('foto', 'is', null);
-    for (const row of (data ?? []) as { foto: { path?: string } | null }[])
+      .or('foto.not.is.null,arquivo.not.is.null');
+    for (const row of (data ?? []) as {
+      foto: { path?: string } | null;
+      arquivo?: { path?: string } | null;
+    }[]) {
       if (row.foto?.path) paths.push(row.foto.path);
+      if (row.arquivo?.path) paths.push(row.arquivo.path);
+    }
   }
   return paths;
 }
