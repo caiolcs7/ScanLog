@@ -129,6 +129,27 @@ test('conversa: estrutura pede medida e foto, almoxarifado responde, estrutura v
   await chat.getByRole('button', { name: 'Pedir foto' }).last().click();
   await expect(chat.locator('.chat-request.is-open')).toHaveCount(2);
   expect(cloud.messages).toHaveLength(2);
+  // Estrutura manda um desenho em PDF pelo clipe.
+  await chat.getByRole('button', { name: 'Anexar foto ou arquivo' }).click();
+  await chat.getByRole('menuitem', { name: 'Arquivo' }).isVisible();
+  await chat.getByLabel('Escolher arquivo').setInputFiles({
+    name: 'desenho-tecnico.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 teste'),
+  });
+  await expect(chat.locator('.chat-draft-file')).toContainText(
+    'desenho-tecnico.pdf',
+  );
+  await chat
+    .getByRole('textbox', { name: 'Mensagem' })
+    .fill('Parece este desenho?');
+  await chat.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect(chat.locator('.chat-file')).toContainText('desenho-tecnico.pdf');
+  expect(
+    [...cloud.files.keys()].some(
+      (k) => k.startsWith('conversa/') && k.endsWith('.pdf'),
+    ),
+  ).toBe(true);
   await chat.getByRole('button', { name: 'Fechar conversa' }).click();
   await expect(page.locator('.find-card').first()).toContainText(
     'Aguardando o almoxarifado',
@@ -159,7 +180,7 @@ test('conversa: estrutura pede medida e foto, almoxarifado responde, estrutura v
     'Etiqueta do lado de trás',
   );
   await answer
-    .locator('input[type=file]:not([capture])')
+    .getByLabel('Escolher foto')
     .setInputFiles(path.resolve('tests/fixtures/address.png'));
   await expect(answer.locator('.chat-draft-photo img')).toBeVisible();
   await answer.getByRole('textbox', { name: 'Resposta' }).fill('Tem só o lote');
@@ -169,6 +190,12 @@ test('conversa: estrutura pede medida e foto, almoxarifado responde, estrutura v
   expect([...cloud.files.keys()].some((k) => k.startsWith('conversa/'))).toBe(
     true,
   );
+  // Almoxarifado baixa o PDF da estrutura.
+  const download = page.waitForEvent('download');
+  await answer
+    .getByRole('button', { name: 'Baixar desenho-tecnico.pdf' })
+    .click();
+  expect((await download).suggestedFilename()).toBe('desenho-tecnico.pdf');
   await answer.getByRole('button', { name: 'Fechar conversa' }).click();
   await expect(page.locator('.help-banner')).toBeHidden();
 

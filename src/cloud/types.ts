@@ -58,6 +58,13 @@ export type Side = 'almoxarifado' | 'estrutura';
 export type MessageKind = 'pedido' | 'resposta' | 'texto';
 export type RequestKind = 'medida' | 'foto' | 'info';
 export type Unit = 'mm' | 'cm' | 'm' | 'pol' | 'g' | 'kg';
+/** Arquivo anexado na conversa (PDF, planilha, desenho…). */
+export type ChatFile = {
+  path: string;
+  nome: string;
+  tamanho: number;
+  tipo: string;
+};
 export type CloudMessage = {
   id: string;
   item_id: string;
@@ -71,6 +78,7 @@ export type CloudMessage = {
   medida: number | null;
   unidade: Unit | null;
   foto: CloudPhoto | null;
+  arquivo?: ChatFile | null;
   responde_a: string | null;
   situacao: 'aberto' | 'respondido' | 'dispensado' | 'cancelado' | null;
   fechado_em: string | null;

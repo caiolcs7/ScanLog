@@ -104,6 +104,7 @@ type Mensagem = {
   medida: number | null;
   unidade: string | null;
   foto: unknown;
+  arquivo: { nome?: string } | null;
 };
 /** Título e texto do aviso de uma mensagem da conversa. */
 function avisoMensagem(m: Mensagem) {
@@ -111,7 +112,12 @@ function avisoMensagem(m: Mensagem) {
   const medida = m.medida != null
     ? m.unidade === 'pol' ? `${numero.format(m.medida)}″` : `${numero.format(m.medida)} ${m.unidade}`
     : '';
-  const partes = [medida, m.foto && m.tipo !== 'pedido' ? 'Foto' : '', m.texto ?? '']
+  const partes = [
+    medida,
+    m.foto && m.tipo !== 'pedido' ? 'Foto' : '',
+    m.arquivo ? `Arquivo ${m.arquivo.nome ?? ''}` : '',
+    m.texto ?? '',
+  ]
     .filter(Boolean)
     .join(' · ');
   const titulo = m.tipo === 'pedido'
@@ -189,7 +195,7 @@ Deno.serve(async (req) => {
     if (pedido.tipo === 'mensagem') {
       const { data: m } = await db
         .from('item_mensagens')
-        .select('id, item_id, lot_id, lado, autor_papel, autor_nome, tipo, pedido, texto, medida, unidade, foto')
+        .select('id, item_id, lot_id, lado, autor_papel, autor_nome, tipo, pedido, texto, medida, unidade, foto, arquivo')
         .eq('id', pedido.id)
         .maybeSingle<Mensagem>();
       if (!m) return json({ enviados: 0 });

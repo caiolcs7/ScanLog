@@ -13,6 +13,9 @@ import {
   CircleCheck,
   Container,
   CornerDownRight,
+  Download,
+  FileText,
+  Paperclip,
   ImagePlus,
   LoaderCircle,
   MapPin,
@@ -40,6 +43,9 @@ import {
   sidesOf,
   unreadFor,
   uploadChatPhoto,
+  uploadChatFile,
+  downloadChatFile,
+  formatBytes,
   watchMessages,
 } from '../../cloud/conversa';
 import type {
@@ -602,12 +608,49 @@ function Bubble({
           ) : (
             <span className="chat-photo missing">Foto indisponível</span>
           ))}
+        {m.arquivo && <FileCard file={m.arquivo} />}
         {m.texto && <p className="chat-text">{m.texto}</p>}
       </div>
       {compact && (
         <span className="chat-time">{time.format(new Date(m.criado_em))}</span>
       )}
     </div>
+  );
+}
+
+const extOf = (name: string) =>
+  /\.([a-z0-9]{1,6})$/i.exec(name)?.[1]?.toUpperCase() ?? 'ARQ';
+
+function FileCard({ file }: { file: NonNullable<CloudMessage['arquivo']> }) {
+  const notice = useNotice();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      className="chat-file"
+      aria-label={`Baixar ${file.nome}`}
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await downloadChatFile(file);
+        } catch (e) {
+          notice(errorMessage(e), 'error');
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <span className="chat-file__icon">
+        <FileText />
+        <span>{extOf(file.nome)}</span>
+      </span>
+      <span className="chat-file__text">
+        <strong>{file.nome}</strong>
+        <small>{formatBytes(file.tamanho)}</small>
+      </span>
+      {busy ? <LoaderCircle className="spin" /> : <Download />}
+    </button>
   );
 }
 
@@ -634,12 +677,15 @@ function Composer({
     [value, setValue] = useState(''),
     [unit, setUnit] = useState<Unit>('mm'),
     [photo, setPhoto] = useState<Draft | null>(null),
+    [file, setFile] = useState<File | null>(null),
+    [attaching, setAttaching] = useState(false),
     [shooting, setShooting] = useState(false),
     [processing, setProcessing] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const camera = useRef<HTMLInputElement>(null),
     gallery = useRef<HTMLInputElement>(null),
+    picker = useRef<HTMLInputElement>(null),
     input = useRef<HTMLTextAreaElement>(null);
   const notice = useNotice();
   const blobs = useMemo(() => [photo?.blob], [photo]);
@@ -665,9 +711,27 @@ function Composer({
     !measureError &&
     (mode.kind === 'ask'
       ? !!text.trim()
-      : !!text.trim() || !!photo || (answerKind === 'medida' && measure > 0));
+      : !!text.trim() ||
+        !!photo ||
+        !!file ||
+        (answerKind === 'medida' && measure > 0));
 
+  /** Arquivo escolhido: imagem vira foto nítida; o resto vai como arquivo. */
+  function addFile(f: File) {
+    setError('');
+    setAttaching(false);
+    if (f.type.startsWith('image/') && !/heic|heif/i.test(f.type)) {
+      void addPhoto(f);
+      return;
+    }
+    if (f.size > 20 * 1024 * 1024) {
+      setError('Arquivo maior que 20 MB. Envie um menor.');
+      return;
+    }
+    setFile(f);
+  }
   async function addPhoto(blob: Blob) {
+    setAttaching(false);
     setProcessing(true);
     setError('');
     try {
@@ -684,6 +748,7 @@ function Composer({
     setError('');
     try {
       const foto = photo ? await uploadChatPhoto(item, photo) : undefined;
+      const arquivo = file ? await uploadChatFile(item, file) : undefined;
       const sent = await sendMessage({
         item,
         lado,
@@ -699,10 +764,12 @@ function Composer({
         medida: answerKind === 'medida' && measure > 0 ? measure : undefined,
         unidade: answerKind === 'medida' && measure > 0 ? unit : undefined,
         foto,
+        arquivo,
       });
       setText('');
       setValue('');
       setPhoto(null);
+      setFile(null);
       if (mode.kind === 'ask')
         notice(
           'Pedido enviado. Você recebe o aviso quando responderem.',
@@ -910,17 +977,75 @@ function Composer({
       )}
 
       {answerKind !== 'foto' && (photo || processing) && photoTools(false)}
-
-      <div className="chat-input">
-        {mode.kind !== 'ask' && answerKind !== 'foto' && !photo && (
+      {file && (
+        <div className="chat-draft-file">
+          <span className="chat-file__icon">
+            <FileText />
+            <span>{extOf(file.name)}</span>
+          </span>
+          <span className="chat-file__text">
+            <strong>{file.name}</strong>
+            <small>{formatBytes(file.size)}</small>
+          </span>
           <button
             type="button"
             className="icon-button"
-            aria-label="Anexar foto"
-            disabled={processing}
-            onClick={() => setShooting(true)}
+            aria-label="Remover arquivo"
+            onClick={() => setFile(null)}
+          >
+            <X />
+          </button>
+        </div>
+      )}
+      {attaching && (
+        <div className="chat-attach" role="menu" aria-label="Anexar">
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setAttaching(false);
+              setShooting(true);
+            }}
           >
             <Camera />
+            Tirar foto
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setAttaching(false);
+              gallery.current?.click();
+            }}
+          >
+            <ImagePlus />
+            Foto da galeria
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setAttaching(false);
+              picker.current?.click();
+            }}
+          >
+            <FileText />
+            Arquivo
+          </button>
+        </div>
+      )}
+
+      <div className="chat-input">
+        {answerKind !== 'foto' && !photo && !file && (
+          <button
+            type="button"
+            className={`icon-button chat-clip ${attaching ? 'on' : ''}`}
+            aria-label="Anexar foto ou arquivo"
+            aria-expanded={attaching}
+            disabled={processing}
+            onClick={() => setAttaching((v) => !v)}
+          >
+            <Paperclip />
           </button>
         )}
         <textarea
@@ -1007,6 +1132,18 @@ function Composer({
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) void addPhoto(file);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={picker}
+        className="sr-only"
+        type="file"
+        tabIndex={-1}
+        aria-label="Escolher arquivo"
+        onChange={(e) => {
+          const chosen = e.target.files?.[0];
+          if (chosen) addFile(chosen);
           e.target.value = '';
         }}
       />

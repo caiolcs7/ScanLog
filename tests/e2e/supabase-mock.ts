@@ -197,6 +197,9 @@ export class SupabaseMock {
             ? `${String(last.medida).replace('.', ',')} ${last.unidade}`
             : '',
           last.foto && last.tipo !== 'pedido' ? 'Foto' : '',
+          last.arquivo
+            ? `Arquivo ${(last.arquivo as { nome: string }).nome}`
+            : '',
           last.texto ?? '',
         ]
           .filter(Boolean)
@@ -474,7 +477,15 @@ export class SupabaseMock {
       rest.startsWith('object/sign/identificacao') &&
       request.method() === 'POST'
     ) {
-      const { paths } = request.postDataJSON() as { paths: string[] };
+      const { paths } = request.postDataJSON() as { paths?: string[] };
+      if (!paths) {
+        const p = decodeURIComponent(
+          rest.replace(/^object\/sign\/identificacao\//, ''),
+        );
+        return this.files.has(p)
+          ? json({ signedURL: `/object/sign/identificacao/${p}?token=t` })
+          : json({ message: 'not found' }, 404);
+      }
       return json(
         paths.map((p) => ({
           path: p,
@@ -498,8 +509,20 @@ export class SupabaseMock {
       return route.fulfill({
         status: 200,
         body: file,
-        contentType: p.endsWith('.webp') ? 'image/webp' : 'image/jpeg',
-        headers: { 'access-control-allow-origin': '*' },
+        contentType: p.endsWith('.webp')
+          ? 'image/webp'
+          : p.endsWith('.pdf')
+            ? 'application/pdf'
+            : 'image/jpeg',
+        headers: {
+          'access-control-allow-origin': '*',
+          // Igual ao Storage: ?download=nome força o download com o nome.
+          ...(url.searchParams.has('download')
+            ? {
+                'content-disposition': `attachment; filename="${url.searchParams.get('download') || p.split('/').pop()}"`,
+              }
+            : {}),
+        },
       });
     }
     if (rest === 'object/identificacao' && request.method() === 'DELETE') {
