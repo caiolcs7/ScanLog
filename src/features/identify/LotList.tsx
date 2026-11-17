@@ -102,6 +102,7 @@ export function LotList({ auth }: { auth: Signed }) {
     .filter(
       (l) =>
         l.name.toLocaleLowerCase('pt-BR').includes(term) ||
+        (l.obs ?? '').toLocaleLowerCase('pt-BR').includes(term) ||
         (byGalao?.has(l.id) ?? false),
     )
     // A estrutura trabalha do mais antigo para o mais novo.
@@ -271,6 +272,7 @@ function LotRow({
         <button className="session-title" onClick={open}>
           {lot.name}
         </button>
+        {lot.obs && <p className="lot-obs">{lot.obs}</p>}
         <div className="session-meta">
           <span className={`status lot-${lot.status}`}>
             {lotStatusLabel[lot.status]}
@@ -399,11 +401,7 @@ function Empty({
 }
 
 function NewLot({ onClose }: { onClose: () => void }) {
-  const today = new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-  }).format(Date.now());
-  const [name, setName] = useState(`Sem código ${today}`),
+  const [obs, setObs] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   return (
@@ -414,7 +412,7 @@ function NewLot({ onClose }: { onClose: () => void }) {
           setBusy(true);
           try {
             const id = crypto.randomUUID();
-            await queueLot(id, name);
+            await queueLot(id, obs);
             onClose();
             navigate(`/identificacao/${id}`);
           } catch (err) {
@@ -423,20 +421,21 @@ function NewLot({ onClose }: { onClose: () => void }) {
           }
         }}
       >
+        <p className="helper">
+          O nome do lote é automático (ex.: Lote 012), com número que nunca se
+          repete.
+        </p>
         <label>
-          Nome do lote
-          <input
+          Observação <span className="optional">(opcional)</span>
+          <textarea
             autoFocus
-            required
-            maxLength={100}
-            value={name}
-            onFocus={(e) => e.target.select()}
-            onChange={(e) => setName(e.target.value)}
+            rows={3}
+            maxLength={200}
+            value={obs}
+            placeholder="Ex.: galões da rua 7, peças da bancada"
+            onChange={(e) => setObs(e.target.value)}
           />
         </label>
-        <p className="helper">
-          Agrupe os produtos que vão juntos para a estrutura.
-        </p>
         {error && (
           <p role="alert" className="form-error">
             {error}
@@ -446,7 +445,7 @@ function NewLot({ onClose }: { onClose: () => void }) {
           <button type="button" onClick={onClose}>
             Cancelar
           </button>
-          <button className="primary" disabled={busy || !name.trim()}>
+          <button className="primary" disabled={busy}>
             {busy ? 'Criando…' : 'Criar lote'}
             <ArrowRight />
           </button>

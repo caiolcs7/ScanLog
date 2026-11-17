@@ -56,12 +56,18 @@ export async function listItemsOf(lotIds: string[]) {
     );
   return all;
 }
-export async function renameLot(id: string, name: string) {
-  const clean = name.trim();
-  if (!clean || clean.length > 100)
-    throw new Error('Informe um nome com até 100 caracteres.');
+/** Observação do lote (o nome é automático e não muda). */
+export async function setLotObs(id: string, obs: string) {
+  const clean = obs.trim().replace(/\s+/g, ' ');
+  if (clean.length > 200)
+    throw new Error('A observação pode ter até 200 caracteres.');
   const client = await supabase();
-  await must(client.from('lots').update({ name: clean }).eq('id', id));
+  await must(
+    client
+      .from('lots')
+      .update({ obs: clean || null })
+      .eq('id', id),
+  );
   cloudChanged();
 }
 export async function sendLot(id: string) {

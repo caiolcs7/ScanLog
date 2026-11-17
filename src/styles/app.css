@@ -4826,6 +4826,22 @@
   .sector-fields .primary {
     min-height: 48px;
   }
+  /* Observação do lote: o nome é automático ("Lote 011"). */
+  .lot-obs {
+    margin: 2px 0 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .page-heading .lot-obs {
+    font-size: 15px;
+    -webkit-line-clamp: unset;
+  }
   .people-list {
     display: grid;
     gap: 6px;

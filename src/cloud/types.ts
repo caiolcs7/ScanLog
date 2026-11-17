@@ -11,6 +11,10 @@ export type CloudLot = {
   confirmed_count: number;
   created_at: string;
   created_by: string;
+  /** Número dado pelo servidor; o nome ("Lote 011") vem dele. */
+  numero?: number;
+  /** Observação livre de quem cadastrou (o nome é automático). */
+  obs?: string | null;
   /** Pessoa do almoxarifado dona do lote (só ela e o administrador veem). */
   dono?: string | null;
   sent_at: string | null;

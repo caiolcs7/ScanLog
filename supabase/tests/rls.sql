@@ -89,8 +89,8 @@ do $$ declare r public.items; begin
   update public.items set status = 'codificado', code = 'A1' where id = r.id;
   update public.items set status = 'confirmado' where id = r.id;
   if (select confirmed_by from public.items where id = r.id) <> 'Administrador' then raise exception 'FALHOU: admin confirmou'; end if;
-  insert into public.lots (name, created_by) values ('Admin', 'Caio');
-  if not exists (select 1 from public.lots where name = 'Admin' and status = 'rascunho') then raise exception 'FALHOU: admin não vê rascunho'; end if;
+  insert into public.lots (name, obs, created_by) values ('x', 'Admin', 'Caio');
+  if not exists (select 1 from public.lots where obs = 'Admin' and status = 'rascunho') then raise exception 'FALHOU: admin não vê rascunho'; end if;
   delete from public.items where id = r.id;
   if not found then raise exception 'FALHOU: admin não apagou confirmado'; end if;
   delete from public.lots where id = r.lot_id;
