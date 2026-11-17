@@ -794,6 +794,15 @@
     margin-top: 12px;
     margin-bottom: 26px;
   }
+  .empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+  .empty-actions button {
+    min-height: 44px;
+  }
   .workflow {
     display: flex;
     align-items: center;
@@ -4816,6 +4825,64 @@
   }
   .sector-fields .primary {
     min-height: 48px;
+  }
+  .people-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .people-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 8px 8px 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .people-list li.inactive {
+    opacity: 0.62;
+  }
+  .people-avatar {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-soft);
+  }
+  .people-info {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+  }
+  .people-info strong,
+  .people-info small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .people-info small {
+    color: var(--text-secondary);
+  }
+  .field-icon .icon-button {
+    flex: none;
+    margin-right: -6px;
+  }
+  .lot-owner-filter {
+    min-height: 44px;
+    max-width: 180px;
+  }
+  .field-hint {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-secondary);
   }
 
   /* Status de lote e item: cor e texto, nunca só cor. */

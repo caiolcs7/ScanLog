@@ -3,7 +3,7 @@
 // o item com a service_role e avisa cada evento uma única vez (push_enviados).
 //   { tipo: 'chave' }            → devolve a chave pública VAPID (gera na 1ª vez)
 //   { tipo: 'lote', id }         → estrutura: chegou levantamento novo
-//   { tipo: 'item', id }         → almoxarifado: código preenchido
+//   { tipo: 'item', id }         → almoxarifado (só a pessoa dona do lote): código preenchido
 //   { tipo: 'mensagem', id }     → o outro setor: pedido, resposta ou recado
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import * as webpush from 'jsr:@negrel/webpush@0.5.0';
@@ -58,19 +58,33 @@ async function primeiraVez(chave: string) {
   throw error;
 }
 
+/** Conta da pessoa dona do lote: no almoxarifado, só ela recebe o aviso. */
+async function contaDoDono(lotId: string) {
+  const { data } = await db.from('lots').select('dono').eq('id', lotId).maybeSingle();
+  if (!data?.dono) return null;
+  const { data: p } = await db.from('pessoas').select('user_id, ativo').eq('id', data.dono).maybeSingle();
+  return p?.ativo ? (p.user_id as string | null) : null;
+}
+
 async function enviar(
   papeis: string[],
   aviso: { title: string; body: string; tag: string; url: string },
+  lotId?: string,
 ) {
   const { app } = await servidor();
-  const { data: inscricoes, error } = await db
+  const { data: todas, error } = await db
     .from('push_inscricoes')
-    .select('endpoint, p256dh, auth')
+    .select('endpoint, p256dh, auth, papel, user_id')
     .in('papel', papeis);
   if (error) throw error;
+  // Almoxarifado: cada pessoa só recebe avisos dos lotes dela.
+  const dono = lotId && papeis.includes('almoxarifado') ? await contaDoDono(lotId) : null;
+  const inscricoes = (todas ?? []).filter((s) =>
+    s.papel !== 'almoxarifado' || (dono !== null && s.user_id === dono)
+  );
   let enviados = 0;
   await Promise.all(
-    (inscricoes ?? []).map(async (s) => {
+    inscricoes.map(async (s) => {
       try {
         await app
           .subscribe({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } })
@@ -189,7 +203,7 @@ Deno.serve(async (req) => {
         // Mesmo lote: o aviso novo substitui o anterior, sem encher a tela.
         tag: `codigos-${item.lot_id}`,
         url: `#/identificacao/${item.lot_id}`,
-      });
+      }, item.lot_id);
       return json({ enviados });
     }
     if (pedido.tipo === 'mensagem') {
@@ -215,7 +229,7 @@ Deno.serve(async (req) => {
         // Mesmo item: o aviso novo substitui o anterior.
         tag: `conversa-${m.item_id}`,
         url: `#/identificacao/${m.lot_id}?conversa=${m.item_id}`,
-      });
+      }, m.lot_id);
       return json({ enviados });
     }
     return json({ erro: 'tipo inválido' }, 400);
