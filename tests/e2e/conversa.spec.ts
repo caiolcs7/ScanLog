@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { SupabaseMock, passwords } from './supabase-mock';
+import { SupabaseMock, passwords, people } from './supabase-mock';
 
 const base = 'http://127.0.0.1:4173/teste-subpasta/';
 test.use({ serviceWorkers: 'block' });
@@ -25,6 +25,7 @@ async function seed(cloud: SupabaseMock) {
     novas_estrutura: 0,
     created_at: now,
     created_by: 'Caio',
+    dono: people.caio.id,
     sent_at: now,
     coded_at: null,
     confirmed_at: null,
@@ -73,12 +74,13 @@ async function login(
   name: string,
 ) {
   await page.getByRole('radio', { name: new RegExp(sector) }).click();
-  await page.getByLabel('Seu nome').fill(name);
-  await page
-    .getByLabel(`Senha do ${sector.toLowerCase()}`)
-    .fill(
-      sector === 'Almoxarifado' ? passwords.almoxarifado : passwords.estrutura,
-    );
+  if (sector === 'Almoxarifado') {
+    await page.getByLabel('Usuário').fill(name.toLowerCase());
+    await page.getByLabel('Sua senha').fill(passwords.almoxarifado);
+  } else {
+    await page.getByLabel('Seu nome').fill(name);
+    await page.getByLabel('Senha do estrutura').fill(passwords.estrutura);
+  }
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(
     page.getByRole('heading', { name: 'Identificação', exact: true }),

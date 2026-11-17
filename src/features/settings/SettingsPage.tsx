@@ -25,6 +25,7 @@ import {
 } from '../../services/backup';
 import { Modal, errorMessage, useNotice, useTask } from '../../components/ui';
 import { PushBanner } from '../identify/shared';
+import { PessoasAdmin } from '../identify/Pessoas';
 
 export function SettingsPage({ settings }: { settings: Settings }) {
   const [form, setForm] = useState(() => structuredClone(settings)),
@@ -426,25 +427,32 @@ function IdentifyAccount() {
   const task = useTask();
   if (auth.status !== 'in') return null;
   return (
-    <section className="settings-section">
-      <div className="settings-section-title">
-        <ScanSearch />
-        <div>
-          <h2>Identificação</h2>
-          <p>Acesso compartilhado com o outro setor.</p>
+    <>
+      <section className="settings-section">
+        <div className="settings-section-title">
+          <ScanSearch />
+          <div>
+            <h2>Identificação</h2>
+            <p>
+              {auth.sector === 'almoxarifado'
+                ? 'Acesso individual: você vê só os seus lotes.'
+                : 'Acesso compartilhado com o outro setor.'}
+            </p>
+          </div>
         </div>
-      </div>
-      <div className="settings-fields">
-        <p>
-          Conectado como <strong>{sectors[auth.sector].label}</strong> ·{' '}
-          {auth.name}
-        </p>
-        <PushBanner sector={auth.sector} userId={auth.userId} compact />
-        <button onClick={() => void task(signOut)}>
-          <LogOut />
-          Sair da Identificação
-        </button>
-      </div>
-    </section>
+        <div className="settings-fields">
+          <p>
+            Conectado como <strong>{sectors[auth.sector].label}</strong> ·{' '}
+            {auth.name}
+          </p>
+          <PushBanner sector={auth.sector} userId={auth.userId} compact />
+          <button onClick={() => void task(signOut)}>
+            <LogOut />
+            Sair da Identificação
+          </button>
+        </div>
+      </section>
+      {auth.sector === 'admin' && <PessoasAdmin />}
+    </>
   );
 }

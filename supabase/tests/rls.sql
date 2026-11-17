@@ -6,7 +6,11 @@ grant all on ids to authenticated;
 insert into ids values (gen_random_uuid(), gen_random_uuid());
 
 -- Almoxarifado cria lote e item; a numeração vem do servidor.
-select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"role":"almoxarifado"}}', true);
+-- Pessoa do almoxarifado (cada uma vê só os lotes dela).
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000a1', 'teste@scanlog.app');
+insert into public.pessoas (nome, login, user_id) values ('Teste', 'teste', '00000000-0000-0000-0000-0000000000a1');
+
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"00000000-0000-0000-0000-0000000000a1","app_metadata":{"role":"almoxarifado"}}', true);
 set local role authenticated;
 insert into public.lots (id, name, created_by) select lot, 'Teste RLS', 'Teste' from ids;
 insert into public.items (id, lot_id, ord, created_by, address, photos, thumb_path)
@@ -27,7 +31,7 @@ do $$ begin
   if exists (select 1 from public.lots where id = (select lot from ids)) then raise exception 'FALHOU: estrutura viu rascunho'; end if;
 end $$;
 
-select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"role":"almoxarifado"}}', true);
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"00000000-0000-0000-0000-0000000000a1","app_metadata":{"role":"almoxarifado"}}', true);
 update public.lots set status = 'enviado' where id = (select lot from ids);
 
 -- Estrutura só altera o código.
@@ -50,7 +54,7 @@ do $$ begin
 end $$;
 
 -- Almoxarifado confirma; a miniatura ganha prazo de 150 dias e os originais podem sair.
-select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"role":"almoxarifado"}}', true);
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"00000000-0000-0000-0000-0000000000a1","app_metadata":{"role":"almoxarifado"}}', true);
 update public.items set status = 'confirmado', confirmed_by = 'Caio' where id = (select item from ids);
 update public.items set photos = '[]' where id = (select item from ids);
 do $$ declare r public.items; begin

@@ -6,7 +6,11 @@ create temp table ids (lot uuid, item uuid, item2 uuid, pedido uuid) on commit d
 grant all on ids to authenticated;
 insert into ids values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid());
 
-select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"role":"almoxarifado"}}', true);
+-- Pessoa do almoxarifado (cada uma vê só os lotes dela).
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000a1', 'teste@scanlog.app');
+insert into public.pessoas (nome, login, user_id) values ('Teste', 'teste', '00000000-0000-0000-0000-0000000000a1');
+
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"00000000-0000-0000-0000-0000000000a1","app_metadata":{"role":"almoxarifado"}}', true);
 set local role authenticated;
 insert into public.lots (id, name, created_by) select lot, 'Conversa', 'Teste' from ids;
 insert into public.items (id, lot_id, ord, created_by, msg_count, pedidos_abertos)
@@ -55,7 +59,7 @@ do $$ declare i public.items; l public.lots; m public.item_mensagens; begin
 end $$;
 
 -- Almoxarifado responde com a medida e uma foto.
-select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"role":"almoxarifado"}}', true);
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"00000000-0000-0000-0000-0000000000a1","app_metadata":{"role":"almoxarifado"}}', true);
 insert into public.item_mensagens (item_id, lot_id, lado, autor_papel, autor_nome, tipo, medida, unidade, texto, foto, responde_a)
   select item, lot, 'almoxarifado', 'almoxarifado', 'Caio', 'resposta', 12.50, 'mm', 'com paquímetro',
          jsonb_build_object('path', 'conversa/' || lot || '/' || item || '/a.jpg', 'width', 10, 'height', 20, 'extra', 1), pedido from ids;
@@ -120,7 +124,7 @@ do $$ declare i public.items; begin
 end $$;
 
 -- Confirmado: conversa encerrada para os setores.
-select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"role":"almoxarifado"}}', true);
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"00000000-0000-0000-0000-0000000000a1","app_metadata":{"role":"almoxarifado"}}', true);
 update public.items set status = 'confirmado', confirmed_by = 'Caio' where id = (select item2 from ids);
 do $$ begin
   begin

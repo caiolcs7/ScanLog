@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { CloudOff } from 'lucide-react';
+import { CloudOff, LogIn, RefreshCw, UserRoundCheck } from 'lucide-react';
 import { Loading } from '../../components/ui';
 import type { Settings } from '../../core/models';
 import { canStock, cloudConfigured } from '../../cloud/config';
-import { useCloudAuth } from '../../cloud/auth';
+import { migrate, signOut, useCloudAuth } from '../../cloud/auth';
 import { watchOutbox } from '../../cloud/outbox';
 import { SectorLogin } from './SectorLogin';
 import { LotList } from './LotList';
@@ -36,6 +36,35 @@ export function IdentifyArea({
     );
   if (auth.status === 'loading')
     return <Loading text="Abrindo Identificação…" />;
+  if (auth.status === 'migrating')
+    return auth.error ? (
+      <main className="page">
+        <section className="empty-state" role="alert">
+          <div className="empty-mark find-mark">
+            <UserRoundCheck size={44} />
+          </div>
+          <h2>Acesso individual</h2>
+          <p>{auth.error}</p>
+          <div className="empty-actions">
+            {auth.retry && (
+              <button className="primary" onClick={() => void migrate()}>
+                <RefreshCw />
+                Tentar de novo
+              </button>
+            )}
+            <button
+              className={auth.retry ? '' : 'primary'}
+              onClick={() => void signOut()}
+            >
+              <LogIn />
+              Entrar com usuário e senha
+            </button>
+          </div>
+        </section>
+      </main>
+    ) : (
+      <Loading text="Atualizando seu acesso…" />
+    );
   if (auth.status === 'out') return <SectorLogin />;
   return lotId ? (
     <LotPage key={lotId} id={lotId} auth={auth} settings={settings} />

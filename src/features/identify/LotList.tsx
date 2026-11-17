@@ -24,6 +24,7 @@ import { db } from '../../core/database';
 import { migrateLocalLots } from '../../core/identify';
 import { listItemsOf, listLots, lotIdsByGalao } from '../../cloud/api';
 import type { CloudAuth } from '../../cloud/auth';
+import { listPessoas, type Pessoa } from '../../cloud/pessoas';
 import { useCloud, usePending } from '../../cloud/hooks';
 import { queueLot } from '../../cloud/outbox';
 import { lotStatusLabel, type CloudLot } from '../../cloud/types';
@@ -55,10 +56,15 @@ export function LotList({ auth }: { auth: Signed }) {
   const almox = canStock(auth.sector),
     admin = auth.sector === 'admin';
   const { data, error, loading, reload } = useCloud(listLots, []);
+  const people = useCloud(
+    () => (admin ? listPessoas() : Promise.resolve([] as Pessoa[])),
+    [admin],
+  ).data;
   const pending = usePending();
   const local = useLiveQuery(() => db.lots.count(), [], 0);
   const [filter, setFilter] = useState<Filter>('open'),
     [search, setSearch] = useState(''),
+    [owner, setOwner] = useState(''),
     [creating, setCreating] = useState(false),
     [sheet, setSheet] = useState(false);
   const lots = useMemo(() => {
@@ -92,6 +98,7 @@ export function LotList({ auth }: { auth: Signed }) {
     done = lots.filter((l) => l.status === 'confirmado');
   const term = search.toLocaleLowerCase('pt-BR');
   const shown = (filter === 'open' ? open : done)
+    .filter((l) => !owner || (owner === 'none' ? !l.dono : l.dono === owner))
     .filter(
       (l) =>
         l.name.toLocaleLowerCase('pt-BR').includes(term) ||
@@ -166,6 +173,24 @@ export function LotList({ auth }: { auth: Signed }) {
           </button>
         </div>
         <div className="toolbar-end">
+          {admin && !!people?.length && (
+            <select
+              className="lot-owner-filter"
+              aria-label="Filtrar por pessoa"
+              value={owner}
+              onChange={(e) => setOwner(e.target.value)}
+            >
+              <option value="">Todas as pessoas</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+              {lots.some((l) => !l.dono) && (
+                <option value="none">Sem pessoa</option>
+              )}
+            </select>
+          )}
           {lots.length > 0 && (
             <div className="search-field">
               <Search />

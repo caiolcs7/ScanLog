@@ -7,24 +7,102 @@ import type { Page, Route } from '@playwright/test';
 type Row = Record<string, unknown> & { id: string };
 type Table = 'lots' | 'items' | 'messages';
 const HOST = 'https://pygedyytlcplfweibenv.supabase.co';
-export const passwords = {
-  almoxarifado: 'senha-almox',
-  estrutura: 'senha-estr',
-};
-
 function jwt(payload: object) {
   const part = (o: object) =>
     Buffer.from(JSON.stringify(o)).toString('base64url');
   return `${part({ alg: 'HS256', typ: 'JWT' })}.${part(payload)}.assinatura`;
 }
+export const passwords = {
+  almoxarifado: 'senha-almox',
+  estrutura: 'senha-estr',
+  /** Conta antiga, compartilhada pelo almoxarifado inteiro. */
+  compartilhada: 'senha-setor',
+};
+/** Pessoas do almoxarifado (usuário → conta própria). */
+export const people: Record<
+  string,
+  { id: string; userId: string; nome: string; password: string }
+> = {
+  caio: {
+    id: 'pessoa-caio',
+    userId: '00000000-0000-4000-8000-000000000001',
+    nome: 'Caio',
+    password: passwords.almoxarifado,
+  },
+  ilidio: {
+    id: 'pessoa-ilidio',
+    userId: '00000000-0000-4000-8000-000000000003',
+    nome: 'Ilídio Nascimento Alves',
+    password: 'senha-ilidio',
+  },
+};
+const SHARED_ID = '00000000-0000-4000-8000-000000000009';
+const key = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+/** Sessão de uma conta (o que o Supabase devolve ao entrar). */
+export function sessionFor(local: string) {
+  const person = people[local];
+  const role = person ? 'almoxarifado' : local;
+  const id = person
+    ? person.userId
+    : local === 'almoxarifado'
+      ? SHARED_ID
+      : '00000000-0000-4000-8000-000000000002';
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const app_metadata = {
+    provider: 'email',
+    role,
+    ...(person ? { nome: person.nome } : {}),
+  };
+  const user = {
+    id,
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: `${local}@scanlog.app`,
+    app_metadata,
+    user_metadata: {},
+    created_at: new Date().toISOString(),
+  };
+  return {
+    access_token: jwt({ sub: id, exp, role: 'authenticated', app_metadata }),
+    token_type: 'bearer',
+    expires_in: 3600,
+    expires_at: exp,
+    refresh_token: 'refresh-' + local,
+    user,
+  };
+}
+
 export class SupabaseMock {
   lots: Row[] = [];
   items: Row[] = [];
   messages: Row[] = [];
   files = new Map<string, Buffer>();
   removed: string[] = [];
+  /** Pessoas que trocaram da conta compartilhada para a própria. */
+  migrated: string[] = [];
   async install(page: Page) {
     await page.route(`${HOST}/**`, (route) => this.handle(route));
+  }
+  /** Pessoa da conta que chamou (nula na conta compartilhada e na estrutura). */
+  private person(route: Route) {
+    const auth = route.request().headers()['authorization'] ?? '';
+    try {
+      const sub = JSON.parse(
+        Buffer.from(
+          auth.replace('Bearer ', '').split('.')[1],
+          'base64url',
+        ).toString(),
+      ).sub as string;
+      return Object.values(people).find((p) => p.userId === sub) ?? null;
+    } catch {
+      return null;
+    }
   }
   private sector(route: Route) {
     const auth = route.request().headers()['authorization'] ?? '';
@@ -59,8 +137,15 @@ export class SupabaseMock {
       });
     if (path === '/auth/v1/token') {
       const { email, password } = request.postDataJSON();
-      const sector = String(email).split('@')[0] as keyof typeof passwords;
-      if (passwords[sector] !== password)
+      const local = String(email).split('@')[0];
+      const expected =
+        people[local]?.password ??
+        (local === 'almoxarifado'
+          ? passwords.compartilhada
+          : local === 'estrutura'
+            ? passwords.estrutura
+            : undefined);
+      if (!expected || expected !== password)
         return json(
           {
             error: 'invalid_grant',
@@ -70,32 +155,25 @@ export class SupabaseMock {
           },
           400,
         );
-      const exp = Math.floor(Date.now() / 1000) + 3600;
-      const user = {
-        id:
-          sector === 'almoxarifado'
-            ? '00000000-0000-4000-8000-000000000001'
-            : '00000000-0000-4000-8000-000000000002',
-        aud: 'authenticated',
-        role: 'authenticated',
-        email,
-        app_metadata: { provider: 'email', role: sector },
-        user_metadata: {},
-        created_at: new Date().toISOString(),
-      };
-      return json({
-        access_token: jwt({
-          sub: user.id,
-          exp,
-          role: 'authenticated',
-          app_metadata: user.app_metadata,
-        }),
-        token_type: 'bearer',
-        expires_in: 3600,
-        expires_at: exp,
-        refresh_token: 'refresh-' + sector,
-        user,
-      });
+      return json(sessionFor(local));
+    }
+    // Troca automática: a conta compartilhada recebe o token da pessoa.
+    if (path === '/functions/v1/pessoas') {
+      const body = request.postDataJSON() as { tipo: string; nome?: string };
+      if (body.tipo !== 'migrar' || this.sector(route) !== 'almoxarifado')
+        return json({ erro: 'tipo inválido' }, 400);
+      const login = Object.entries(people).find(
+        ([, p]) => key(p.nome) === key(body.nome ?? ''),
+      )?.[0];
+      if (!login) return json({ erro: 'sem_pessoa' }, 409);
+      this.migrated.push(login);
+      return json({ token_hash: 'otp-' + login });
+    }
+    if (path === '/auth/v1/verify') {
+      const { token_hash } = request.postDataJSON() as { token_hash: string };
+      const login = String(token_hash).replace(/^otp-/, '');
+      if (!people[login]) return json({ msg: 'Token has expired' }, 403);
+      return json(sessionFor(login));
     }
     if (path.startsWith('/auth/v1/logout'))
       return route.fulfill({ status: 204 });
@@ -165,9 +243,17 @@ export class SupabaseMock {
               : 'enviado',
     });
   }
-  private visible(table: Table, sector?: string) {
+  private visible(table: Table, sector?: string, me?: { id: string } | null) {
     if (sector !== 'almoxarifado' && sector !== 'estrutura') return [];
-    if (sector === 'almoxarifado') return this[table];
+    if (sector === 'almoxarifado') {
+      // Cada pessoa só vê os lotes dela (migração 0013).
+      const mine = new Set(
+        this.lots.filter((l) => me && l.dono === me.id).map((l) => l.id),
+      );
+      return table === 'lots'
+        ? this.lots.filter((l) => mine.has(l.id))
+        : this[table].filter((i) => mine.has(String(i.lot_id)));
+    }
     const sent = new Set(
       this.lots.filter((l) => l.status !== 'rascunho').map((l) => l.id),
     );
@@ -209,8 +295,8 @@ export class SupabaseMock {
       });
     this.refresh(String(item.lot_id));
   }
-  private addMessage(body: Row, sector?: string) {
-    const item = this.visible('items', sector).find(
+  private addMessage(body: Row, sector?: string, me?: { id: string } | null) {
+    const item = this.visible('items', sector, me).find(
       (i) => i.id === body.item_id,
     );
     const lot = this.lots.find((l) => l.id === item?.lot_id);
@@ -250,9 +336,14 @@ export class SupabaseMock {
     this.chatSummary(String(item.id));
     return row;
   }
-  private rpc(name: string, args: Row, sector?: string) {
+  private rpc(
+    name: string,
+    args: Row,
+    sector?: string,
+    me?: { id: string } | null,
+  ) {
     if (name === 'conversa_lida') {
-      const item = this.visible('items', sector).find(
+      const item = this.visible('items', sector, me).find(
         (i) => i.id === args.p_item,
       );
       if (item)
@@ -379,10 +470,11 @@ export class SupabaseMock {
   ) {
     const request = route.request();
     const sector = this.sector(route);
+    const me = this.person(route);
     if (table.startsWith('rpc/'))
       try {
         return json(
-          this.rpc(table.slice(4), request.postDataJSON() ?? {}, sector),
+          this.rpc(table.slice(4), request.postDataJSON() ?? {}, sector, me),
         );
       } catch (e) {
         return json({ message: (e as Error).message }, 400);
@@ -393,9 +485,13 @@ export class SupabaseMock {
       );
       try {
         if (request.method() === 'GET')
-          return json(this.filter(this.visible('messages', sector), url));
+          return json(this.filter(this.visible('messages', sector, me), url));
         if (request.method() === 'POST') {
-          const row = this.addMessage(request.postDataJSON() as Row, sector);
+          const row = this.addMessage(
+            request.postDataJSON() as Row,
+            sector,
+            me,
+          );
           return json(single ? row : [row], 201);
         }
       } catch (e) {
@@ -415,7 +511,7 @@ export class SupabaseMock {
         : json(single ? (rows[0] ?? null) : rows, status);
     try {
       if (request.method() === 'GET')
-        return respond(this.filter(this.visible(table, sector), url));
+        return respond(this.filter(this.visible(table, sector, me), url));
       if (sector !== 'almoxarifado' && request.method() !== 'PATCH')
         return json({ message: 'Sem permissão.' }, 403);
       if (request.method() === 'POST') {
@@ -431,7 +527,14 @@ export class SupabaseMock {
             this.update(table, existing, patch);
             out.push(existing);
           } else {
+            if (table === 'lots' && !me)
+              return json(
+                { message: 'Entre com o seu usuário para cadastrar.' },
+                400,
+              );
             const created = this.insert(table, row);
+            if (table === 'lots' && me)
+              Object.assign(created, { dono: me.id, created_by: me.nome });
             this[table].push(created);
             if (table === 'items') this.refresh(String(created.lot_id));
             out.push(created);
@@ -439,7 +542,7 @@ export class SupabaseMock {
         }
         return respond(out, 201);
       }
-      const rows = this.filter(this.visible(table, sector), url);
+      const rows = this.filter(this.visible(table, sector, me), url);
       if (request.method() === 'PATCH') {
         const patch = request.postDataJSON() as Row;
         if (

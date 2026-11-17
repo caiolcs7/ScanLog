@@ -21,19 +21,18 @@ test('identificação na nuvem: almoxarifado cadastra, estrutura codifica, almox
     .click();
   const login = async (sector: 'Almoxarifado' | 'Estrutura', name: string) => {
     await page.getByRole('radio', { name: new RegExp(sector) }).click();
-    await page.getByLabel('Seu nome').fill(name);
-    await page
-      .getByLabel(`Senha do ${sector.toLowerCase()}`)
-      .fill(
-        sector === 'Almoxarifado'
-          ? passwords.almoxarifado
-          : passwords.estrutura,
-      );
+    if (sector === 'Almoxarifado') {
+      await page.getByLabel('Usuário').fill(name.toLowerCase());
+      await page.getByLabel('Sua senha').fill(passwords.almoxarifado);
+    } else {
+      await page.getByLabel('Seu nome').fill(name);
+      await page.getByLabel('Senha do estrutura').fill(passwords.estrutura);
+    }
     await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(
       page.getByRole('heading', { name: 'Identificação', exact: true }),
     ).toBeVisible();
-    await expect(page.getByLabel('Seu nome')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Entrar' })).toBeHidden();
   };
   const logout = async () => {
     await page
@@ -50,10 +49,12 @@ test('identificação na nuvem: almoxarifado cadastra, estrutura codifica, almox
 
   // Senha errada não entra.
   await page.getByRole('radio', { name: /Almoxarifado/ }).click();
-  await page.getByLabel('Seu nome').fill('Caio');
-  await page.getByLabel('Senha do almoxarifado').fill('errada');
+  await page.getByLabel('Usuário').fill('caio');
+  await page.getByLabel('Sua senha').fill('errada');
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page.getByRole('alert')).toContainText('Senha incorreta');
+  await expect(page.getByRole('alert')).toContainText(
+    'Usuário ou senha incorretos',
+  );
   await login('Almoxarifado', 'Caio');
 
   await page
@@ -239,8 +240,8 @@ test('identificação: foto pela câmera do app, sem passar pela galeria', async
   await cloud.install(page);
   await page.goto(base + '#/identificacao');
   await page.getByRole('radio', { name: /Almoxarifado/ }).click();
-  await page.getByLabel('Seu nome').fill('Caio');
-  await page.getByLabel('Senha do almoxarifado').fill(passwords.almoxarifado);
+  await page.getByLabel('Usuário').fill('caio');
+  await page.getByLabel('Sua senha').fill(passwords.almoxarifado);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await page
     .getByRole('button', { name: 'Nova identificação', exact: true })

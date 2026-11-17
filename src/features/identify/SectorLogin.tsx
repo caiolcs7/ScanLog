@@ -1,11 +1,19 @@
 import { useState } from 'react';
-import { ArrowRight, Boxes, Lock, Network, ShieldCheck } from 'lucide-react';
+import {
+  ArrowRight,
+  Boxes,
+  Lock,
+  Network,
+  ShieldCheck,
+  UserRound,
+} from 'lucide-react';
 import { errorMessage } from '../../components/ui';
 import { sectors, type Sector } from '../../cloud/config';
 import { signIn } from '../../cloud/auth';
 
 const about: Record<Sector, string> = {
-  almoxarifado: 'Fotografa os produtos sem código e confere o retorno.',
+  almoxarifado:
+    'Cada pessoa entra com o próprio usuário e vê só os lotes dela.',
   estrutura: 'Preenche o código de cada item enviado.',
   admin: 'Os dois setores juntos: edita e exclui tudo.',
 };
@@ -14,7 +22,10 @@ const icons: Record<Sector, typeof Boxes> = {
   estrutura: Network,
   admin: ShieldCheck,
 };
-/** Entrada por setor: senha guardada só no Supabase, nunca no app. */
+/**
+ * Entrada: almoxarifado com usuário próprio, estrutura com a senha do setor.
+ * Senhas ficam só no Supabase, nunca no app.
+ */
 export function SectorLogin() {
   const [sector, setSector] = useState<Sector | null>(null),
     [name, setName] = useState(() => {
@@ -24,6 +35,7 @@ export function SectorLogin() {
         return '';
       }
     }),
+    [user, setUser] = useState(''),
     [password, setPassword] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -45,7 +57,11 @@ export function SectorLogin() {
           setBusy(true);
           setError('');
           try {
-            await signIn(sector, password, name);
+            await signIn(
+              sector,
+              password,
+              sector === 'almoxarifado' ? user : name,
+            );
           } catch (err) {
             setError(errorMessage(err));
           } finally {
@@ -77,20 +93,44 @@ export function SectorLogin() {
         </div>
         {sector && (
           <div className="sector-fields">
+            {sector === 'almoxarifado' ? (
+              <label>
+                Usuário
+                <span className="field-icon">
+                  <UserRound aria-hidden="true" />
+                  <input
+                    name="username"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    maxLength={30}
+                    required
+                    value={user}
+                    placeholder="ex.: ilidio"
+                    onChange={(e) => setUser(e.target.value)}
+                  />
+                </span>
+                <small className="field-hint">
+                  Quem não tem usuário pede ao administrador.
+                </small>
+              </label>
+            ) : (
+              <label>
+                Seu nome
+                <input
+                  autoComplete="name"
+                  maxLength={60}
+                  required
+                  value={name}
+                  placeholder="Como aparece nos registros"
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </label>
+            )}
             <label>
-              Seu nome
-              <input
-                autoComplete="name"
-                maxLength={60}
-                required
-                value={name}
-                placeholder="Como aparece nos registros"
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            <label>
-              {sector === 'admin'
-                ? 'Senha do administrador'
+              {sector === 'almoxarifado'
+                ? 'Sua senha'
                 : `Senha do ${sectors[sector].label.toLowerCase()}`}
               <span className="field-icon">
                 <Lock aria-hidden="true" />
@@ -111,7 +151,11 @@ export function SectorLogin() {
             )}
             <button
               className="primary"
-              disabled={busy || !password || name.trim().length < 2}
+              disabled={
+                busy ||
+                !password ||
+                (sector === 'almoxarifado' ? user : name).trim().length < 2
+              }
             >
               {busy ? 'Entrando…' : 'Entrar'}
               <ArrowRight />

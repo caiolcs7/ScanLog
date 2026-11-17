@@ -11,6 +11,8 @@ export type CloudLot = {
   confirmed_count: number;
   created_at: string;
   created_by: string;
+  /** Pessoa do almoxarifado dona do lote (só ela e o administrador veem). */
+  dono?: string | null;
   sent_at: string | null;
   coded_at: string | null;
   confirmed_at: string | null;
