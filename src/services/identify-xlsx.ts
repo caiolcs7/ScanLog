@@ -34,7 +34,7 @@ export function identifyRow(item: CloudItem, lot?: CloudLot) {
     item.bombona ?? '',
     item.weight_g ?? '',
     itemLabel(item.ord),
-    lot?.name ?? '',
+    lot ? [lot.name, lot.obs].filter(Boolean).join(' · ') : '',
     itemStatusLabel[item.status],
     when(item.created_at),
     when(item.coded_at),

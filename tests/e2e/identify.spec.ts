@@ -61,11 +61,15 @@ test('identificação na nuvem: almoxarifado cadastra, estrutura codifica, almox
     .getByRole('button', { name: 'Nova identificação', exact: true })
     .first()
     .click();
-  await page.getByLabel('Nome do lote').fill('Sem código R01');
+  await page.getByLabel('Observação').fill('Sem código R01');
   await page.getByRole('button', { name: 'Criar lote' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Sem código R01', exact: true }),
+    page.getByRole('heading', { name: 'Lote 001', exact: true }),
   ).toBeVisible();
+  // Nome automático; o que a pessoa escreveu fica como observação.
+  await expect(page.locator('.page-heading .lot-obs')).toHaveText(
+    'Sem código R01',
+  );
 
   // Item 1: duas fotos, endereço lido pelo scanner, bombona e peso.
   await page.getByRole('button', { name: 'Adicionar produto' }).first().click();
@@ -151,7 +155,7 @@ test('identificação na nuvem: almoxarifado cadastra, estrutura codifica, almox
   // Estrutura preenche os códigos item por item.
   await logout();
   await login('Estrutura', 'Ana');
-  await page.getByRole('button', { name: 'Sem código R01' }).click();
+  await page.getByRole('button', { name: 'Lote 001' }).click();
   await page.getByRole('button', { name: 'Preencher códigos' }).click();
   const entry = page.getByRole('dialog', { name: /Item 01/ });
   await expect(entry.locator('.code-photos img')).toHaveCount(2);
@@ -178,7 +182,7 @@ test('identificação na nuvem: almoxarifado cadastra, estrutura codifica, almox
   // Almoxarifado confere e confirma: originais saem, fica a miniatura.
   await logout();
   await login('Almoxarifado', 'Caio');
-  await page.getByRole('button', { name: 'Sem código R01' }).click();
+  await page.getByRole('button', { name: 'Lote 001' }).click();
   await expect(page.locator('.find-card').first()).toContainText(
     'CODIGO : 000123',
   );

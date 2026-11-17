@@ -86,6 +86,8 @@ export class SupabaseMock {
   removed: string[] = [];
   /** Pessoas que trocaram da conta compartilhada para a própria. */
   migrated: string[] = [];
+  /** Último número de lote dado (sequência do servidor). */
+  lastNumber = 0;
   async install(page: Page) {
     await page.route(`${HOST}/**`, (route) => this.handle(route));
   }
@@ -372,7 +374,9 @@ export class SupabaseMock {
     if (table === 'lots')
       return {
         id: body.id ?? crypto.randomUUID(),
-        name: body.name,
+        numero: ++this.lastNumber,
+        name: `Lote ${String(this.lastNumber).padStart(3, '0')}`,
+        obs: body.obs || null,
         created_by: body.created_by,
         status: 'rascunho',
         item_count: 0,
@@ -428,7 +432,8 @@ export class SupabaseMock {
         row.sent_at = now.toISOString();
         this.refresh(row.id);
       }
-      if (patch.name) row.name = patch.name;
+      // Nome e número são do servidor (migração 0014); só a observação muda.
+      if ('obs' in patch) row.obs = patch.obs || null;
       return;
     }
     if (

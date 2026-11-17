@@ -22,8 +22,8 @@ insert into storage.objects (bucket_id, name) values
   ('identificacao', 'originais/20000000-0000-0000-0000-00000000000b/x/1.jpg');
 do $$ begin
   if public.pessoas_semear() <> 3 then raise exception 'FALHOU: semear'; end if;
-  if (select dono from public.lots where name = 'Lote Ana') <> '10000000-0000-0000-0000-00000000000a' then raise exception 'FALHOU: dono Ana'; end if;
-  if (select p.login from public.lots l join public.pessoas p on p.id = l.dono where l.name = 'Lote Ilídio') <> 'ilidio' then raise exception 'FALHOU: login criado'; end if;
+  if (select dono from public.lots where id = '20000000-0000-0000-0000-00000000000a') <> '10000000-0000-0000-0000-00000000000a' then raise exception 'FALHOU: dono Ana'; end if;
+  if (select p.login from public.lots l join public.pessoas p on p.id = l.dono where l.id = '20000000-0000-0000-0000-0000000000dd') <> 'ilidio' then raise exception 'FALHOU: login criado'; end if;
   if public.pessoas_semear() <> 0 then raise exception 'FALHOU: semear de novo'; end if;
 end $$;
 

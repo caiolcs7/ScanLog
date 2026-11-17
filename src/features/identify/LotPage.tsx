@@ -41,7 +41,7 @@ import {
   downloadPhoto,
   getLot,
   listItems,
-  renameLot,
+  setLotObs,
   returnItem,
   sendLot,
 } from '../../cloud/api';
@@ -203,7 +203,11 @@ export function LotPage({
     }
   };
   const lotMenu: MenuItem[] = [
-    { label: 'Renomear', icon: <Pencil />, onSelect: () => setRenaming(true) },
+    {
+      label: lot.obs ? 'Editar observação' : 'Adicionar observação',
+      icon: <Pencil />,
+      onSelect: () => setRenaming(true),
+    },
     ...(lot.confirmed_count === 0 || admin
       ? [
           {
@@ -224,6 +228,7 @@ export function LotPage({
       <div className="page-heading session-heading">
         <div>
           <h1>{lot.name}</h1>
+          {lot.obs && <p className="lot-obs">{lot.obs}</p>}
           <div className="lot-meta">
             <span className={`status lot-${lot.status}`}>
               {lotStatusLabel[lot.status]}
@@ -795,17 +800,17 @@ function HelpBanner({
 }
 
 function RenameLot({ lot, onClose }: { lot: CloudLot; onClose: () => void }) {
-  const [name, setName] = useState(lot.name),
+  const [obs, setObs] = useState(lot.obs ?? ''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   return (
-    <Modal title="Renomear lote" onClose={onClose}>
+    <Modal title={`Observação do ${lot.name}`} onClose={onClose}>
       <form
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
           try {
-            await renameLot(lot.id, name);
+            await setLotObs(lot.id, obs);
             onClose();
           } catch (err) {
             setError(errorMessage(err));
@@ -814,13 +819,14 @@ function RenameLot({ lot, onClose }: { lot: CloudLot; onClose: () => void }) {
         }}
       >
         <label>
-          Nome do lote
-          <input
+          Observação <span className="optional">(opcional)</span>
+          <textarea
             autoFocus
-            required
-            maxLength={100}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            rows={3}
+            maxLength={200}
+            value={obs}
+            placeholder="Ex.: galões da rua 7, peças da bancada"
+            onChange={(e) => setObs(e.target.value)}
           />
         </label>
         {error && (
@@ -832,7 +838,7 @@ function RenameLot({ lot, onClose }: { lot: CloudLot; onClose: () => void }) {
           <button type="button" onClick={onClose}>
             Cancelar
           </button>
-          <button className="primary" disabled={busy || !name.trim()}>
+          <button className="primary" disabled={busy}>
             Salvar
           </button>
         </div>
@@ -958,7 +964,10 @@ function ExportLot({
       });
     }
     const blob = await createFindDocument(
-      { name: lot.name, createdAt: Date.parse(lot.created_at) },
+      {
+        name: [lot.name, lot.obs].filter(Boolean).join(' · '),
+        createdAt: Date.parse(lot.created_at),
+      },
       docItems,
     );
     await saveOrShare(

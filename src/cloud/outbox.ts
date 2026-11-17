@@ -50,10 +50,11 @@ export function thumbPath(lotId: string, itemId: string, blob: Blob) {
   return `miniaturas/${lotId}/${itemId}-${Date.now().toString(36)}.${ext}`;
 }
 
-export async function queueLot(lotId: string, name: string) {
-  const clean = name.trim();
-  if (!clean || clean.length > 100)
-    throw new Error('Informe um nome com até 100 caracteres.');
+/** Lote novo: o nome ("Lote 011") vem do servidor; aqui só a observação. */
+export async function queueLot(lotId: string, obs = '') {
+  const clean = obs.trim().replace(/\s+/g, ' ');
+  if (clean.length > 200)
+    throw new Error('A observação pode ter até 200 caracteres.');
   await db.outbox.add({
     id: crypto.randomUUID(),
     createdAt: sequence(),
@@ -161,7 +162,8 @@ async function send(entry: OutboxEntry) {
   if (entry.kind === 'lot') {
     const { error } = await client.from('lots').upsert({
       id: entry.lotId,
-      name: entry.lotName,
+      name: 'Lote',
+      obs: entry.lotName || null,
       created_by: entry.createdBy,
     });
     if (error) throw error;

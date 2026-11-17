@@ -56,7 +56,8 @@ export function pendingLot(entry: OutboxEntry): CloudLot {
   const at = new Date(entry.createdAt).toISOString();
   return {
     id: entry.lotId,
-    name: entry.lotName ?? 'Lote',
+    name: 'Lote (aguardando número)',
+    obs: entry.lotName || null,
     status: 'rascunho',
     item_count: 0,
     coded_count: 0,
