@@ -1,5 +1,5 @@
 # ScanLog - copia os produtos do Protheus para o Supabase.
-# Roda pela tarefa agendada "ScanLog Sync Protheus" (seg a sex, 4h).
+# Roda pela tarefa agendada "ScanLog Sync Protheus" (seg a sex, 0h30).
 # Manual: powershell -ExecutionPolicy Bypass -File sync.ps1 [-Teste]
 # -Teste le so as primeiras paginas e nunca apaga nada.
 # (Arquivo so com ASCII: o PowerShell 5.1 le .ps1 sem BOM como ANSI.)
@@ -20,6 +20,14 @@ $Lote = 500      # itens por envio ao Supabase
 # Para testar outro numero sem reinstalar: coloque so o numero em juntas.txt (pasta ScanLogSync).
 $JF = Join-Path $Dir 'juntas.txt'
 if (Test-Path $JF) { $x = 0; if ([int]::TryParse((Get-Content $JF -Raw).Trim(), [ref]$x) -and $x -ge 1 -and $x -le 64) { $Juntas = $x } }
+# Tempo maximo da leitura: passou disso, para de baixar e FECHA a leitura no
+# Supabase com o que ja veio (antes ela era morta pelo limite da tarefa sem
+# fechar, e o comparativo do dia nao saia). Mudar: so o numero em horas.txt.
+$Horas = 6.5
+$HF = Join-Path $Dir 'horas.txt'
+if (Test-Path $HF) { $x = 0.0; if ([double]::TryParse((Get-Content $HF -Raw).Trim().Replace(',', '.'), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$x) -and $x -ge 0.5 -and $x -le 18) { $Horas = $x } }
+$Prazo = (Get-Date).AddHours($Horas)
+function Estourou { (Get-Date) -ge $Prazo }
 $TF = Join-Path $Dir 'tamanho.txt'   # itens por pagina, para testar (ex.: 250)
 if (Test-Path $TF) { $x = 0; if ([int]::TryParse((Get-Content $TF -Raw).Trim(), [ref]$x) -and $x -ge 10 -and $x -le 1000 -and $x % 10 -eq 0) { $Tamanho = $x } }
 
@@ -102,8 +110,8 @@ function Baixar($pedidos) {
   $fila = New-Object System.Collections.Queue
   foreach ($q in $pedidos) { $fila.Enqueue($q) }
   $ativos = New-Object System.Collections.ArrayList
-  while ($fila.Count -or $ativos.Count) {
-    while ($ativos.Count -lt $Juntas -and $fila.Count) {
+  while (($fila.Count -and -not (Estourou)) -or $ativos.Count) {
+    while ($ativos.Count -lt $Juntas -and $fila.Count -and -not (Estourou)) {
       $q = $fila.Dequeue()
       $f = Join-Path $Tmp ((Chave $q) + '.json')
       Remove-Item $f -ErrorAction SilentlyContinue
@@ -204,6 +212,7 @@ try {
     Log ("prioridade IT/MP: " + $lista.Count + " paginas")
     $tam = 2 * $Juntas
     for ($i = 0; $i -lt $lista.Count; $i += $tam) {
+      if (Estourou) { break }
       $bl = @($lista[$i..([Math]::Min($i + $tam, $lista.Count) - 1)] | ForEach-Object { @{ p = $_; s = $Tamanho } })
       $rs0 = Baixar $bl
       foreach ($q in $bl) {
@@ -239,6 +248,7 @@ try {
     }
     Log "ate a pagina $($pp - 1): $($script:lidos) lidos, $($script:gravados) gravados, $pulou paginas puladas, $($falhas.Count) paginas para dividir"
     if ($null -ne $fim -or $Teste) { break }
+    if (Estourou) { Log "tempo limite ($Horas h): parando e fechando a leitura"; break }
     if ($res.Count -eq 0) {
       # Nada veio: fim da lista ou Protheus fora do ar.
       if ($vazias -eq 0) { $iniVaz = $bloco[0].p }
@@ -251,10 +261,10 @@ try {
   # Os dois ultimos blocos vazios (fim da lista ou Protheus fora) nao sao
   # paginas com defeito.
   if ($vazias -ge 2) { $falhas = @($falhas | Where-Object { $_.p -lt $iniVaz }) }
-  if ($Teste) { $falhas = @() }
+  if ($Teste -or (Estourou)) { $falhas = @() }
   # Quase sempre a pagina falhou por lentidao (passou de 240 s), nao por item
   # com defeito: antes de dividir, tenta de novo inteira, duas vezes.
-  for ($r = 1; $r -le 2 -and $falhas.Count; $r++) {
+  for ($r = 1; $r -le 2 -and $falhas.Count -and -not (Estourou); $r++) {
     Log ("tentando de novo " + $falhas.Count + " paginas inteiras (vez $r)")
     $rr = Baixar $falhas
     $resta = New-Object System.Collections.ArrayList
@@ -264,7 +274,8 @@ try {
     $falhas = @($resta)
     Enviar
   }
-  if ($falhas.Count) {
+  if ($falhas.Count -and (Estourou)) { Log ("tempo limite: " + $falhas.Count + " paginas ficam para amanha") }
+  elseif ($falhas.Count) {
     Log ("dividindo " + $falhas.Count + " paginas: " + (($falhas | ForEach-Object { $_.p }) -join ', '))
     $d = [int]($Tamanho / 10)
     $subs = @(foreach ($f in $falhas) { foreach ($k in 1..$d) { @{ p = ($f.p - 1) * $d + $k; s = 10 } } })
@@ -282,10 +293,13 @@ try {
         }
       }
     }
-    if ($unid.Count) {
+    Enviar
+    if ($unid.Count -and (Estourou)) { Log ("tempo limite: " + $unid.Count + " itens nao conferidos") }
+    elseif ($unid.Count) {
       $ru = Baixar $unid
       foreach ($q in $unid) {
         if ($ru.ContainsKey((Chave $q))) { Guardar $ru[(Chave $q)] }
+        elseif (Estourou) { }
         else { $script:pulados++; Log "item $($q.p) pulado (Protheus nao devolve)" }
       }
     }
