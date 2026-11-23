@@ -93,6 +93,15 @@ const CONTAINER_ADDRESS =
 export function isContainerAddress(value: string): boolean {
   return CONTAINER_ADDRESS.test(value);
 }
+/**
+ * Usinagem labels: U + street (U01–U06) + A floor (A1/A2) + C column + side
+ * letter + P shelf, e.g. U01A1C00DP01. Same shape as the R streets.
+ */
+const USINAGEM_ADDRESS =
+  /^U([0-9]{2})A([0-9]{1,3})C([0-9]{1,3})([A-Z])P([0-9]{1,3})$/;
+export function isUsinagemAddress(value: string): boolean {
+  return USINAGEM_ADDRESS.test(value);
+}
 function isWarehouseAddress(value: string): boolean {
   // Physical location labels use R + street + A + floor, followed by an
   // alphanumeric location block. This recognizes labels such as:
@@ -101,7 +110,8 @@ function isWarehouseAddress(value: string): boolean {
   return (
     /^R[0-9]{2,3}A[0-9]{1,3}[A-Z0-9]{1,120}$/.test(value) ||
     /^R[0-9]{2,3}B[0-9]{1,3}$/.test(value) ||
-    isContainerAddress(value)
+    isContainerAddress(value) ||
+    isUsinagemAddress(value)
   );
 }
 function matchesAddress(value: string, rules: Rules): boolean {
@@ -125,6 +135,7 @@ function normalizeStructuredAddress(raw: string, rules: Rules): string | null {
       compact,
     );
   if (container) return container[1];
+  if (isUsinagemAddress(compact)) return compact;
   if (!/^R[0-9]{2,3}/.test(compact)) return null;
   return matchesAddress(compact, rules) ? compact : null;
 }
@@ -232,16 +243,16 @@ function containerParityWarning(address: string): string | null {
 }
 export function extractStreet(address: string): string {
   if (isContainerAddress(address)) return 'EXT';
-  return /^R[0-9]+(?=[A-Z]|$)/.exec(address)?.[0] ?? 'Sem rua';
+  return /^[RU][0-9]+(?=[A-Z]|$)/.exec(address)?.[0] ?? 'Sem rua';
 }
 /** Upper-floor (A2) bombonas carry an S suffix: R15A2… → R15G01S. */
 export function bombonaSuffix(address: string): string {
-  return /^R[0-9]+A2(?![0-9])/.test(address) ? 'S' : '';
+  return /^[RU][0-9]+A2(?![0-9])/.test(address) ? 'S' : '';
 }
 /** Bombona numbering series of an address: street plus floor suffix (R15, R15S). */
 export function bombonaSeries(address: string): string {
   // Containers have no automatic bombona numbering (only streets do).
-  const street = /^R[0-9]+(?=[A-Z]|$)/.exec(address)?.[0];
+  const street = /^[RU][0-9]+(?=[A-Z]|$)/.exec(address)?.[0];
   return street ? street + bombonaSuffix(address) : 'Sem rua';
 }
 /**
@@ -258,6 +269,17 @@ export function addressParts(
       { label: 'Rua', value: 'EXT' },
       { label: 'Andar', value: `A${andar}` },
       { label: 'Container', value: `CT${numero}` },
+      { label: 'Lado', value: lado },
+      { label: 'Prateleira', value: prateleira },
+    ];
+  }
+  const usinagem = USINAGEM_ADDRESS.exec(address);
+  if (usinagem) {
+    const [, rua, andar, coluna, lado, prateleira] = usinagem;
+    return [
+      { label: 'Rua', value: `U${rua}` },
+      { label: 'Andar', value: andar },
+      { label: 'Coluna', value: coluna },
       { label: 'Lado', value: lado },
       { label: 'Prateleira', value: prateleira },
     ];
@@ -286,7 +308,7 @@ export function searchText(value: string): string {
  */
 export function parseGalao(raw: string): string | null {
   const value = cleanText(raw).replace(/[^A-Z0-9]/g, '');
-  return /^R[0-9]{1,3}G[0-9]{1,3}S?$/.test(value) ? value : null;
+  return /^[RU][0-9]{1,3}G[0-9]{1,3}S?$/.test(value) ? value : null;
 }
 /** Manual galão entry: any short alphanumeric identifier. */
 export function normalizeGalao(raw: string): string {
