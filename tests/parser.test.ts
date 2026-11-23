@@ -236,6 +236,22 @@ describe('container (EXT) addresses', () => {
     expect(bombonaSeries('EXTA1C010P00')).toBe('Sem rua');
     expect(bombonaSeries('R15A2C01DP02')).toBe('R15S');
   });
+  it('reads Usinagem (U) addresses like streets', () => {
+    expect(parseScan('U01A1C00DP01', rules)).toMatchObject({
+      normalized: 'U01A1C00DP01',
+      type: 'address',
+      valid: true,
+    });
+    expect(parseScan('U 06 A2 C10 D P03', rules).normalized).toBe(
+      'U06A2C10DP03',
+    );
+    expect(extractStreet('U01A1C00DP01')).toBe('U01');
+    expect(addressParts('U01A1C00DP01')?.[0]).toEqual({
+      label: 'Rua',
+      value: '01',
+    });
+    expect(bombonaSeries('U01A2C00DP01')).toBe('Sem rua');
+  });
   it('does not treat ordinary products starting with EXT as containers', () =>
     expect(parseScan('EXT12345', rules)).toMatchObject({
       valid: true,
