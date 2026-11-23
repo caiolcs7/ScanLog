@@ -242,3 +242,31 @@ describe('container (EXT) addresses', () => {
       type: 'product',
     }));
 });
+describe('usinagem (U) addresses', () => {
+  it.each([
+    ['U01A1C00DP01', 'U01A1C00DP01'],
+    ['A1;U01A1C00DP01', 'U01A1C00DP01'],
+    ['u01 a1 c00 d p01', 'U01A1C00DP01'],
+    ['U06A2C12EP03', 'U06A2C12EP03'],
+  ])('reads %s as the usinagem location %s', (raw, normalized) =>
+    expect(parseScan(raw, rules)).toMatchObject({
+      valid: true,
+      type: 'address',
+      normalized,
+    }),
+  );
+  it('splits it into its parts and groups it by street', () => {
+    expect(addressParts('U01A1C00DP01')).toEqual([
+      { label: 'Rua', value: 'U01' },
+      { label: 'Andar', value: '1' },
+      { label: 'Coluna', value: '00' },
+      { label: 'Lado', value: 'D' },
+      { label: 'Prateleira', value: '01' },
+    ]);
+    expect(extractStreet('U03A2C01DP01')).toBe('U03');
+    expect(bombonaSeries('U01A1C00DP01')).toBe('U01');
+    expect(bombonaSeries('U01A2C00DP01')).toBe('U01S');
+  });
+  it('keeps ordinary U products as products', () =>
+    expect(parseScan('U12345', rules)).toMatchObject({ type: 'product' }));
+});
