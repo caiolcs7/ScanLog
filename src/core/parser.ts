@@ -101,6 +101,7 @@ function isWarehouseAddress(value: string): boolean {
   return (
     /^R[0-9]{2,3}A[0-9]{1,3}[A-Z0-9]{1,120}$/.test(value) ||
     /^R[0-9]{2,3}B[0-9]{1,3}$/.test(value) ||
+    /^U[0-9]{2,3}A[0-9]{1,3}[A-Z0-9]{1,120}$/.test(value) ||
     isContainerAddress(value)
   );
 }
@@ -125,7 +126,7 @@ function normalizeStructuredAddress(raw: string, rules: Rules): string | null {
       compact,
     );
   if (container) return container[1];
-  if (!/^R[0-9]{2,3}/.test(compact)) return null;
+  if (!/^[RU][0-9]{2,3}/.test(compact)) return null;
   return matchesAddress(compact, rules) ? compact : null;
 }
 
@@ -232,7 +233,7 @@ function containerParityWarning(address: string): string | null {
 }
 export function extractStreet(address: string): string {
   if (isContainerAddress(address)) return 'EXT';
-  return /^R[0-9]+(?=[A-Z]|$)/.exec(address)?.[0] ?? 'Sem rua';
+  return /^[RU][0-9]+(?=[A-Z]|$)/.exec(address)?.[0] ?? 'Sem rua';
 }
 /** Upper-floor (A2) bombonas carry an S suffix: R15A2… → R15G01S. */
 export function bombonaSuffix(address: string): string {
@@ -263,7 +264,7 @@ export function addressParts(
     ];
   }
   const match =
-    /^R([0-9]{2,3})A([0-9]{1,3})C([0-9]{1,3})([A-Z])P([0-9]{1,3})$/.exec(
+    /^[RU]([0-9]{2,3})A([0-9]{1,3})C([0-9]{1,3})([A-Z])P([0-9]{1,3})$/.exec(
       address,
     );
   if (!match) return null;
