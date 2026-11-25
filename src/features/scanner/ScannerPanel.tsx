@@ -423,9 +423,8 @@ export function ScannerPanel({
         }}
       />
       <div className="scanner-foot">
-        <span>
-          <ShieldCheck />
-          Processamento local
+        <span title="Processamento local">
+          <ShieldCheck aria-label="Processamento local" />
         </span>
         {locked && (
           <span>
