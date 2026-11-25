@@ -14,7 +14,9 @@ export function ManualDialog({
   onResult: (result: ScanResult) => void;
 }) {
   const [code, setCode] = useState(''),
-    [entryType, setEntryType] = useState<'code' | 'no-code' | 'empty'>('code'),
+    [entryType, setEntryType] = useState<
+      'code' | 'no-code' | 'empty' | 'descriptive'
+    >('code'),
     [address, setAddress] = useState(session.activeAddress),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -36,7 +38,13 @@ export function ManualDialog({
                   ? 'VAZIO'
                   : code;
             onResult(
-              await addManual(session.id, resolvedCode, address, settings),
+              await addManual(
+                session.id,
+                resolvedCode,
+                address,
+                settings,
+                entryType === 'descriptive',
+              ),
             );
             onClose();
           } catch (err) {
@@ -78,7 +86,30 @@ export function ManualDialog({
             />
             VAZIO
           </label>
+          <label>
+            <input
+              type="radio"
+              name="manual-entry-type"
+              value="descriptive"
+              checked={entryType === 'descriptive'}
+              onChange={() => setEntryType('descriptive')}
+            />
+            DESCRITIVO
+          </label>
         </fieldset>
+        {entryType === 'descriptive' && (
+          <label>
+            Descritivo
+            <textarea
+              autoFocus
+              required
+              rows={3}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              maxLength={500}
+            />
+          </label>
+        )}
         {entryType === 'code' && (
           <label>
             Código do Produto
