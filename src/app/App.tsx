@@ -234,22 +234,17 @@ function Application() {
       </div>
       <div className="app-bottom">
         {area === 'identify' ? (
-          <span>
-            <Cloud />
-            Identificação compartilhada na nuvem
+          <span title="Identificação compartilhada na nuvem">
+            <Cloud aria-label="Identificação compartilhada na nuvem" />
           </span>
         ) : (
-          <span>
-            <ShieldCheck />
-            Levantamentos salvos só neste aparelho
+          <span title="Levantamentos salvos só neste aparelho">
+            <ShieldCheck aria-label="Levantamentos salvos só neste aparelho" />
           </span>
         )}
-        <span>
-          {offlineReady || cached
-            ? 'Pronto para uso offline'
-            : online
-              ? 'Preparação offline automática'
-              : 'Sem conexão'}
+        {!online && !(offlineReady || cached) && <span>Sem conexão</span>}
+        <span className="app-copyright">
+          © {new Date().getFullYear()} LCA Solutions
         </span>
       </div>
     </div>
