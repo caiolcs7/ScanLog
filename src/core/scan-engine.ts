@@ -297,9 +297,17 @@ export async function addManual(
   code: string,
   address: string,
   settings: Settings,
+  descriptive = false,
 ) {
-  const specialCode =
-    code === 'SEM CODIGO' || code === 'VAZIO' ? code : undefined;
+  // Descritivo: texto livre digitado pela pessoa, gravado como está no lugar
+  // do código (aparece igual nas exportações), sem validação de formato.
+  const text = code.trim();
+  if (descriptive && !text) throw new Error('Escreva o descritivo.');
+  const specialCode = descriptive
+    ? text
+    : code === 'SEM CODIGO' || code === 'VAZIO'
+      ? code
+      : undefined;
   const product = specialCode ? undefined : parseScan(code, settings.rules),
     location = parseScan(address, settings.rules);
   if (product && (product.type !== 'product' || !product.valid))
@@ -317,6 +325,8 @@ export async function addManual(
         paired: false,
       },
       settings,
+      // Entrada manual nunca pergunta sobre código repetido.
+      true,
     );
     await history(
       sessionId,
