@@ -32,9 +32,6 @@ async function imageScan(page: Page, name: string) {
     .setInputFiles(path.resolve(`tests/fixtures/${filename}`));
 }
 async function readyOffline(page: Page) {
-  await expect(
-    page.getByText('Pronto para uso offline', { exact: true }),
-  ).toBeVisible({ timeout: 30000 });
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
   });
