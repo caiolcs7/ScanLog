@@ -62,7 +62,7 @@ describe('automatic bombonas', () => {
     await processScan(s.id, 'ITB001', 'hid', settings);
     expect((await rows(s.id)).at(-1)).toEqual(['ITB001', 'R07G01']);
   });
-  it('never asks to confirm repeated VAZIO but still guards real codes', async () => {
+  it('manual entry never asks to confirm repeats; scanner still does', async () => {
     const s = await createSession('Vazio', 'fixed');
     const strict = { ...defaultSettings, duplicates: true };
     await addManual(s.id, 'VAZIO', 'R14A1C05EP01', strict);
@@ -71,8 +71,20 @@ describe('automatic bombonas', () => {
     );
     await addManual(s.id, 'ITA001', 'R14A1C05EP01', strict);
     expect((await addManual(s.id, 'ITA001', 'R14A1C05EP01', strict)).kind).toBe(
-      'duplicate',
+      'product',
     );
+    const d = await addManual(
+      s.id,
+      '  caixa azul s/ etiqueta ',
+      'R14A1C05EP01',
+      strict,
+      true,
+    );
+    expect(d.kind).toBe('product');
+    expect((await rows(s.id)).at(-1)?.[0]).toBe('caixa azul s/ etiqueta');
+    await expect(
+      addManual(s.id, '   ', 'R14A1C05EP01', strict, true),
+    ).rejects.toThrow();
   });
   it('starts at a configured bombona number', async () => {
     const s = await createSession('Inicio', 'fixed');
