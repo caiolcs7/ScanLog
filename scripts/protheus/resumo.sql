@@ -36,7 +36,7 @@ begin
 
   if (e.iniciado_em at time zone 'America/Sao_Paulo')::date < hoje then
     status := 'nao_rodou';
-    motivos := motivos || 'a leitura de hoje não começou (PC desligado ou sem o usuário logado?)';
+    motivos := motivos || 'a leitura de hoje não começou (PC desligado ou sem o usuário logado?)'::text;
   elsif e.terminado_em is null then
     if coalesce(ult, e.iniciado_em) > now() - interval '40 minutes' then
       return jsonb_build_object('status','rodando','anomalia',false,'texto','API: leitura ainda rodando.');
@@ -46,7 +46,7 @@ begin
   else
     status := 'ok';
     if coalesce(e.lidos,0) = 0 or coalesce(e.gravados,0) = 0 then
-      motivos := motivos || 'a leitura terminou com 0 lidos (senha do Protheus expirada?)';
+      motivos := motivos || 'a leitura terminou com 0 lidos (senha do Protheus expirada?)'::text;
     end if;
   end if;
 
@@ -99,7 +99,7 @@ begin
     linhas := linhas || format('- Removidos: %s', coalesce(rel.r->>'removidos_n','0'));
     linhas := linhas || format('- Saldos alterados: %s', coalesce(rel.r->>'saldo_alterado_n','0'));
   elsif status = 'ok' then
-    linhas := linhas || '- O comparativo sai quando o Supabase terminar de calcular.';
+    linhas := linhas || '- O comparativo sai quando o Supabase terminar de calcular.'::text;
   end if;
 
   select * into lg from relatorio_api_log order by exec desc limit 1;
@@ -108,15 +108,15 @@ begin
       to_char(lg.em at time zone 'America/Sao_Paulo','DD/MM HH24"h"MI'),
       lg.resumo->>'d', lg.resumo->>'p', lg.resumo->>'e', lg.resumo->>'s', lg.resumo->>'i');
     if lg.exec < e.id then
-      linhas := linhas || '  (a leitura de hoje entra quando você abrir o Relatório)';
+      linhas := linhas || '  (a leitura de hoje entra quando você abrir o Relatório)'::text;
     end if;
   end if;
 
   if array_length(motivos,1) > 0 then
-    linhas := linhas || ('⚠️ ' || array_to_string(motivos, '; ') || '.');
+    linhas := linhas || ('⚠️ ' || array_to_string(motivos, '; ') || '.')::text;
   end if;
 
-  return jsonb_build_object('status', status, 'anomalia', array_length(motivos,1) > 0,
+  return jsonb_build_object('status', status, 'anomalia', coalesce(array_length(motivos,1),0) > 0,
     'motivos', to_jsonb(motivos), 'exec', e.id, 'texto', array_to_string(linhas, E'\n'));
 end $$;
 revoke all on function public.protheus_resumo_hoje() from public, anon, authenticated;
