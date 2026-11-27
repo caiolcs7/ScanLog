@@ -22,7 +22,7 @@
     <script>
       /* Cópia só de leitura do Relatório dos Containers. O original é um Artifact do Claude, que não abre
          em alguns países (ex.: China). Quando o dono abre ou salva o Relatório, ele manda o código e os
-         dados ao Supabase; aqui montamos a mesma página com eles e avisamos quando chega coisa nova. */
+         dados ao Supabase; aqui montamos a mesma página com eles e recarregamos sozinhos quando chega coisa nova. */
       (function () {
         var U = 'https://pygedyytlcplfweibenv.supabase.co/rest/v1/relatorio_espelho';
         var K = 'sb_publishable_Wo0BJpc1B3O8Feog9to3yQ_PcBZfNcQ';
@@ -37,14 +37,15 @@
           document.getElementById('m').innerHTML =
             '<p>Não foi possível carregar o relatório agora. · 暂时无法加载报告。</p><button type="button" onclick="location.reload()">Tentar de novo · 重试</button>';
         }
-        /* Vigia: a cada 30 s (com a aba visível) olha se o relatório mudou e oferece atualizar */
+        /* Vigia: a cada 30 s (só com a aba visível) olha se o relatório mudou e recarrega sozinho, sem botão.
+           Não recarrega com janela aberta ou campo em uso; guarda a rolagem e volta para ela. Uma vez por versão (sem loop). */
         function watcher(last) {
-          return '<script>(function(){var U=' + JSON.stringify(U) + ',K=' + JSON.stringify(K) + ',L=' + JSON.stringify(last) + ',shown=false;' +
-            'function tick(){if(document.hidden||shown)return;fetch(U+"?select=atualizado&order=atualizado.desc&limit=1",{headers:{apikey:K,Authorization:"Bearer "+K},cache:"no-store"})' +
-            '.then(function(r){return r.ok?r.json():[]}).then(function(r){if(r[0]&&r[0].atualizado>L){shown=true;var b=document.createElement("button");b.type="button";' +
-            'b.textContent="Relatório atualizado, toque para ver · 报告已更新";b.style.cssText="position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;' +
-            'max-width:calc(100% - 32px);padding:12px 18px;border:0;border-radius:12px;background:#e0560f;color:#fff;font:600 15px system-ui,sans-serif;box-shadow:0 10px 30px -10px rgba(0,0,0,.5)";' +
-            'b.onclick=function(){location.reload()};document.body.appendChild(b)}}).catch(function(){})}' +
+          return '<script>(function(){var U=' + JSON.stringify(U) + ',K=' + JSON.stringify(K) + ',L=' + JSON.stringify(last) + ',novo=false,ss;' +
+            'try{ss=sessionStorage;var y=+ss.getItem("espY");ss.removeItem("espY");if(y)addEventListener("load",function(){setTimeout(function(){scrollTo(0,y)},300)})}catch(e){}' +
+            'function ocupado(){var a=document.activeElement;return document.querySelector(".cf")||(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))}' +
+            'function vai(){if(document.hidden||ocupado())return;try{ss.setItem("espY",String(scrollY))}catch(e){}location.reload()}' +
+            'function tick(){if(document.hidden)return;if(novo)return vai();fetch(U+"?select=atualizado&order=atualizado.desc&limit=1",{headers:{apikey:K,Authorization:"Bearer "+K},cache:"no-store"})' +
+            '.then(function(r){return r.ok?r.json():[]}).then(function(r){if(r[0]&&r[0].atualizado>L){novo=true;vai()}}).catch(function(){})}' +
             'setInterval(tick,30000);document.addEventListener("visibilitychange",tick)})();<\/script>';
         }
         get('?select=chave,valor,atualizado')
